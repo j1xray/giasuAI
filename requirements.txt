@@ -3,6 +3,7 @@ google-generativeai
 langchain
 langchain-community
 langchain-google-genai
+langchain-text-splitters
 chromadb
 pypdf
-langchain-text-splitters
+pysqlite3-binary
