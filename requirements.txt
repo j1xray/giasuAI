@@ -1,10 +1,6 @@
 streamlit
+supabase
+st-login-form
 google-generativeai
-langchain
-langchain-community
-langchain-google-genai
-langchain-text-splitters
-chromadb
-pypdf
-pysqlite3-binary
-langchain-classic
+Pillow
+payos
