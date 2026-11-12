@@ -3,7 +3,6 @@ import os
 import time
 import base64
 import requests
-import json
 from datetime import datetime, timedelta, timezone
 from PIL import Image
 import google.generativeai as genai
@@ -12,9 +11,9 @@ from st_login_form import login_form
 from openai import OpenAI
 
 # ===== 1. CẤU HÌNH TRANG =====
-st.set_page_config(page_title="Gia Sư AI - Trợ lý học tập", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="Gia Sư AI", page_icon="🧠", layout="wide")
 
-# ===== 2. KHỞI TẠO KẾT NỐI =====
+# ===== 2. KHỞI TẠO KẾT NỐI SUPABASE & GEMINI =====
 try:
     # Khởi tạo Supabase
     supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
@@ -28,7 +27,10 @@ except Exception as e:
     st.stop()
 
 # ===== 3. ĐĂNG NHẬP / ĐĂNG KÝ =====
-client_auth = login_form(supabase_url=st.secrets["SUPABASE_URL"], supabase_key=st.secrets["SUPABASE_KEY"])
+client_auth = login_form(
+    supabase_url=st.secrets["SUPABASE_URL"], 
+    supabase_key=st.secrets["SUPABASE_KEY"]
+)
 
 if not st.session_state.get("authenticated"):
     st.info("👋 Chào mừng bạn đến với Gia Sư AI. Vui lòng đăng nhập/đăng ký để nhận 7 ngày dùng thử (Premium).")
@@ -38,32 +40,39 @@ user_id = st.session_state.get("user_id")
 user_email = st.session_state.get("email")
 
 # ===== 4. QUẢN LÝ GÓI DỊCH VỤ (FREEMIUM) =====
-res = supabase.table("user_subscriptions").select("*").eq("user_id", user_id).execute()
-now = datetime.now(timezone.utc)
-is_premium = False
+try:
+    res = supabase.table("user_subscriptions").select("*").eq("user_id", user_id).execute()
+    now = datetime.now(timezone.utc)
+    is_premium = False
 
-if len(res.data) == 0:
-    # Người dùng mới -> Cấp Trial 7 ngày
-    trial_end = now + timedelta(days=7)
-    supabase.table("user_subscriptions").insert({
-        "user_id": user_id, "email": user_email, "trial_start": now.isoformat(),
-        "plan_type": "trial", "expiry_date": trial_end.isoformat()
-    }).execute()
-    st.toast("🎁 Chúc mừng! Bạn đã được nâng cấp lên gói Trial (Premium) 7 ngày.", icon="✅")
-    is_premium = True
-    plan_type = "Trial (7 ngày)"
-else:
-    user_data = res.data[0]
-    expiry_date = datetime.fromisoformat(user_data["expiry_date"].replace('Z', '+00:00'))
-    plan_type = user_data["plan_type"]
-    
-    if now > expiry_date:
-        is_premium = False
-        plan_type = "Miễn phí (Free)"
-    else:
+    if len(res.data) == 0:
+        # Người dùng mới -> Cấp Trial 7 ngày
+        trial_end = now + timedelta(days=7)
+        supabase.table("user_subscriptions").insert({
+            "user_id": user_id, 
+            "email": user_email, 
+            "trial_start": now.isoformat(),
+            "plan_type": "trial", 
+            "expiry_date": trial_end.isoformat()
+        }).execute()
+        st.toast("🎁 Chúc mừng! Bạn đã được nâng cấp lên gói Trial (Premium) 7 ngày.", icon="✅")
         is_premium = True
-        days_left = (expiry_date - now).days
-        plan_type = f"{plan_type.capitalize()} (Còn {days_left} ngày)"
+        plan_type = "Trial (7 ngày)"
+    else:
+        user_data = res.data[0]
+        expiry_date = datetime.fromisoformat(user_data["expiry_date"].replace('Z', '+00:00'))
+        plan_type = user_data["plan_type"]
+        
+        if now > expiry_date:
+            is_premium = False
+            plan_type = "Miễn phí (Free)"
+        else:
+            is_premium = True
+            days_left = (expiry_date - now).days
+            plan_type = f"{plan_type.capitalize()} (Còn {days_left} ngày)"
+except Exception as e:
+    st.error(f"Lỗi truy xuất dữ liệu người dùng: {e}")
+    st.stop()
 
 # ===== 5. SIDEBAR (THANH ĐIỀU HƯỚNG) =====
 with st.sidebar:
@@ -73,7 +82,7 @@ with st.sidebar:
     
     # Nút nâng cấp (ApiPay)
     if not is_premium:
-        st.warning("Bạn đang dùng bản Miễn phí (Giới hạn 5 câu hỏi/ngày). Nâng cấp để mở khóa toàn bộ!")
+        st.warning("Bạn đang dùng bản Miễn phí (Giới hạn 100 câu hỏi/ngày). Nâng cấp để mở khóa toàn bộ!")
         if st.button("💳 Nâng cấp Premium (20k/tháng)", use_container_width=True):
             try:
                 # Tạo auth base64 cho ApiPay
@@ -83,7 +92,7 @@ with st.sidebar:
                 
                 # Tạo link thanh toán
                 payload = {
-                    "bankPublicId": "bank_abc123",  # Mã ngân hàng MB của bạn trên ApiPay
+                    "bankPublicId": "bank_abc123",  # Mã ngân hàng MB của bạn trên ApiPay (Cần thay bằng mã thật)
                     "amount": 20000,
                     "content": f"UPGRADE_{user_id}"
                 }
@@ -94,7 +103,7 @@ with st.sidebar:
                         pay_url = response.json().get("payUrl")
                         st.markdown(f'<meta http-equiv="refresh" content="0; url={pay_url}">', unsafe_allow_html=True)
                     else:
-                        st.error("Lỗi tạo thanh toán. Vui lòng thử lại sau.")
+                        st.error("Lỗi tạo thanh toán. Vui lòng kiểm tra lại ApiPay.")
             except Exception as e:
                 st.error(f"Lỗi ApiPay: {e}")
     
@@ -108,7 +117,7 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-# ===== 6. HÀM GỌI AI ĐA NỀN TẢNG (MULTI-PROVIDER) =====
+# ===== 6. HÀM GỌI AI ĐA NỀN TẢNG =====
 def get_ai_response(prompt, image=None, provider="gemini"):
     try:
         if provider == "Google Gemini (Khuyên dùng)":
@@ -148,8 +157,8 @@ with tab_chat:
             st.markdown(msg["content"])
 
     # Giới hạn 5 câu cho bản Free
-    if not is_premium and st.session_state.chat_count >= 5:
-        st.warning("🛑 Bạn đã đạt giới hạn 5 câu hỏi/ngày của bản Miễn phí. Nâng cấp Premium để chat không giới hạn.")
+    if not is_premium and st.session_state.chat_count >= 100:
+        st.warning("🛑 Bạn đã đạt giới hạn 100 câu hỏi/ngày của bản Miễn phí. Nâng cấp Premium để chat không giới hạn.")
     else:
         if prompt := st.chat_input("Hỏi bài (VD: Giải thích định lý Pytago)"):
             st.session_state.messages.append({"role": "user", "content": prompt})
