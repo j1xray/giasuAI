@@ -1,3 +1,4 @@
+
 import streamlit as st
 import os
 import time
@@ -7,260 +8,208 @@ from datetime import datetime, timedelta, timezone
 from PIL import Image
 import google.generativeai as genai
 from supabase import create_client
-from st_login_form import login_form
 from openai import OpenAI
 import streamlit.components.v1 as components
+import random
 
-# ===== 1. CẤU HÌNH TRANG =====
+# ===== 1. CẤU HÌNH TRANG & KHỞI TẠO =====
 st.set_page_config(page_title="Gia Sư AI", page_icon="🧠", layout="wide")
+supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# ===== 2. KHỞI TẠO KẾT NỐI =====
-try:
-    supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-except Exception as e:
-    st.error(f"❌ Lỗi cấu hình: {e}")
-    st.stop()
-
-# ===== 3. ĐĂNG NHẬP =====
-try:
-    # st-login-form tự động đọc Secrets
-    client_auth = login_form()
-except Exception as e:
-    # Bắt lỗi nếu người dùng bấm Đăng ký với tên đã tồn tại
-    if "23505" in str(e) or "duplicate key" in str(e):
-        st.error("❌ Tên đăng nhập này đã có người sử dụng! Hãy chuyển sang tab 'Login' để đăng nhập, hoặc chọn tên khác.")
+# ===== 2. ĐĂNG NHẬP (GOOGLE & GUEST) =====
+if not st.user.is_logged_in:
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        st.title("🧠 Chào mừng đến với Gia Sư AI")
+        st.write("Vui lòng đăng nhập để sử dụng đầy đủ tính năng.")
+        if st.button("Đăng nhập bằng Google", use_container_width=True):
+            st.login("google")
+    with col2:
+        st.write("### Hoặc")
+        if st.button("Vào với tư cách Khách (Guest)", use_container_width=True):
+            st.session_state.guest_user = f"Guest_{random.randint(1000, 9999)}"
+            st.rerun()
+    
+    # Nếu đang là khách
+    if "guest_user" in st.session_state:
+        username = st.session_state.guest_user
+        is_admin = False
+        user_avatar = "👤"
     else:
-        st.error(f"❌ Lỗi đăng nhập: {e}")
-    st.stop()
+        st.stop()
+else:
+    username = st.user.email.split('@')[0]
+    is_admin = (st.user.email == "admin_email_cua_ban@gmail.com") # Thay email admin thật của bạn vào đây
+    user_avatar = st.user.picture
 
-if not st.session_state.get("authenticated"):
-    st.info("👋 Vui lòng đăng nhập/đăng ký để nhận 7 ngày dùng thử (Premium).")
-    st.stop()
+# Lưu user vào Supabase nếu chưa có
+try:
+    user_check = supabase.table("users").select("*").eq("username", username).execute()
+    if not user_check.data:
+        supabase.table("users").insert({"username": username, "password": "oauth_user"}).execute()
+except: pass
 
-username = st.session_state.get("username")
-
-# ===== 4. QUẢN LÝ GÓI DỊCH VỤ =====
+# ===== 3. QUẢN LÝ GÓI DỊCH VỤ =====
+now = datetime.now(timezone.utc)
 try:
     res = supabase.table("user_subscriptions").select("*").eq("username", username).execute()
-    now = datetime.now(timezone.utc)
-    is_premium = False
-
     if len(res.data) == 0:
         trial_end = now + timedelta(days=7)
-        supabase.table("user_subscriptions").insert({
-            "username": username, "email": username, "trial_start": now.isoformat(),
-            "plan_type": "trial", "expiry_date": trial_end.isoformat()
-        }).execute()
-        st.toast("🎁 Đã kích hoạt 7 ngày dùng thử Premium!", icon="✅")
+        supabase.table("user_subscriptions").insert({"username": username, "expiry_date": trial_end.isoformat()}).execute()
         is_premium = True
-        plan_type = "Trial (7 ngày)"
     else:
-        user_data = res.data[0]
-        expiry_date = datetime.fromisoformat(user_data["expiry_date"].replace('Z', '+00:00'))
-        plan_type = user_data["plan_type"]
-        
-        if now > expiry_date:
-            is_premium = False
-            plan_type = "Miễn phí (Free)"
-        else:
-            is_premium = True
-            days_left = (expiry_date - now).days
-            plan_type = f"{plan_type.capitalize()} (Còn {days_left} ngày)"
-except Exception as e:
-    st.toast(f"Lỗi dữ liệu: {e}", icon="❌")
-    st.stop()
+        expiry_date = datetime.fromisoformat(res.data[0]["expiry_date"].replace('Z', '+00:00'))
+        is_premium = now < expiry_date
+except: is_premium = False
 
-# ===== 5. SIDEBAR =====
+# ===== 4. SIDEBAR (MENU) =====
 with st.sidebar:
-    st.title("🧠 Gia Sư AI")
-    st.success(f"Chào, **{username}**!")
-    st.markdown(f"**Gói:** `{plan_type}`")
+    col_avt, col_info = st.columns([1, 3])
+    with col_avt:
+        if isinstance(user_avatar, str) and user_avatar.startswith("http"):
+            st.image(user_avatar, width=50)
+        else:
+            st.write("# 👤")
+    with col_info:
+        st.subheader(username)
+        st.caption("Admin" if is_admin else "Học viên")
     
-    if not is_premium:
-        st.warning("Bạn đang dùng bản Miễn phí (Giới hạn 100 câu hỏi/ngày). Nâng cấp để mở khóa toàn bộ!")
-        if st.button("💳 Nâng cấp Premium (20k/tháng)", use_container_width=True):
+    st.divider()
+    
+    # PHẦN NHÓM
+    st.subheader("👥 Nhóm học tập")
+    with st.expander("Tạo nhóm mới"):
+        group_name = st.text_input("Tên nhóm")
+        if is_admin:
+            group_type = st.selectbox("Loại nhóm", ["community (Cộng đồng)", "study (Học tập)"])
+            type_val = group_type.split(" ")[0]
+        else:
+            st.info("Chỉ Admin mới có thể tạo nhóm cộng đồng.")
+            type_val = "study"
+            
+        if st.button("Tạo nhóm"):
             try:
-                auth_str = f"{st.secrets['APIPAY_ACCESS_KEY']}:{st.secrets['APIPAY_SECRET_KEY']}"
-                auth_base64 = base64.b64encode(auth_str.encode()).decode()
-                headers = {"Authorization": f"Bearer {auth_base64}", "Content-Type": "application/json"}
-                
-                payload = {
-                    "bankPublicId": "bank_abc123",  # Bạn nhớ thay mã ngân hàng thật của ApiPay vào đây
-                    "amount": 20000,
-                    "content": f"UPGRADE_{username}"
-                }
-                
-                with st.spinner("Đang tạo mã thanh toán..."):
-                    response = requests.post("https://app.apipay.vn/v1/client/payment-requests", json=payload, headers=headers)
-                    if response.status_code == 200:
-                        pay_url = response.json().get("payUrl")
-                        st.markdown(f'<meta http-equiv="refresh" content="0; url={pay_url}">', unsafe_allow_html=True)
-                    else:
-                        st.toast("Lỗi tạo thanh toán. Vui lòng kiểm tra lại ApiPay.", icon="❌")
-            except Exception as e:
-                st.toast(f"Lỗi ApiPay: {e}", icon="❌")
-    
-    st.divider()
-    st.subheader("🤖 Chọn Trợ lý AI")
-    # ĐÃ CẬP NHẬT TÊN MODEL MỚI
-    provider = st.selectbox("Nền tảng", ["Google Gemini 2.5", "Groq (Llama 3.3)", "OpenRouter"])
-    
-    st.divider()
-    with st.expander("📞 Liên hệ Admin"):
-        st.write("Zalo/Hotline: **0123.456.789**")
-        st.write("Email: **admin@giasuai.com**")
-        st.write("Group FB hỗ trợ: [Bấm vào đây](https://facebook.com)")
-        
-    if st.button("Đăng xuất", use_container_width=True):
-        st.session_state.clear()
+                supabase.table("groups").insert({"group_name": group_name, "group_type": type_val, "created_by": username}).execute()
+                st.toast("Đã tạo nhóm!")
+            except: st.toast("Lỗi: Tên nhóm có thể đã tồn tại", icon="❌")
+            
+    if st.button("Đăng xuất"):
+        if "guest_user" in st.session_state:
+            del st.session_state.guest_user
+        if st.user.is_logged_in:
+            st.logout()
         st.rerun()
 
-# ===== 6. HÀM GỌI AI (ĐÃ CẬP NHẬT MODEL MỚI NHẤT) =====
-def get_ai_response(prompt, image=None, provider="gemini"):
-    try:
-        if provider == "Google Gemini 2.5": # Tên hiển thị trong selectbox
-            # 1. Cập nhật model Gemini mới nhất
-            model = genai.GenerativeModel('gemini-3.6-flash')
-            content = [prompt]
-            if image: content.append(image)
-            return model.generate_content(content).text
-            
-        elif provider == "Groq (Llama 3.3)": # Tên hiển thị trong selectbox
-            if image: return "⚠️ Groq không hỗ trợ đọc ảnh. Vui lòng chọn Gemini!"
-            client = OpenAI(api_key=st.secrets["GROQ_API_KEY"], base_url="https://api.groq.com/openai/v1")
-            # 2. Cập nhật model Groq mới nhất
-            res = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": prompt}])
-            return res.choices[0].message.content
-            
-        elif provider == "OpenRouter":
-            if image: return "⚠️ OpenRouter không hỗ trợ đọc ảnh. Vui lòng chọn Gemini!"
-            client = OpenAI(api_key=st.secrets["OPENROUTER_API_KEY"], base_url="https://openrouter.ai/api/v1")
-            # 3. Cập nhật model OpenRouter miễn phí mới nhất
-            res = client.chat.completions.create(model="openai/gpt-oss-120b:free", messages=[{"role": "user", "content": prompt}])
-            return res.choices[0].message.content
-    except Exception as e:
-        st.toast(f"Lỗi AI: {str(e)[:100]}...", icon="❌")
-        return "Hiện tại không thể kết nối với AI. Vui lòng thử lại sau giây lát."
+# ===== 5. CÁC TABS CHÍNH =====
+tab_chat, tab_room, tab_social, tab_forum = st.tabs(["💬 Chat AI", "🎥 Phòng Học", "👫 Bạn Bè", "📚 Diễn Đàn"])
 
-# ===== 7. GIAO DIỆN CHÍNH (TABS) =====
-tab_chat, tab_vision, tab_room, tab_forum = st.tabs([
-    "💬 Chat Gia Sư", "📸 Giải Bài Tập", "🎥 Phòng Học Tập", "📚 Diễn Đàn & Tài Liệu"
-])
-
-# --- TAB 1: CHAT ---
+# --- TAB CHAT AI ---
 with tab_chat:
-    if "chat_count" not in st.session_state: st.session_state.chat_count = 0
     if "messages" not in st.session_state:
         st.session_state.messages = [{"role": "assistant", "content": "Chào bạn! Mình có thể giúp gì hôm nay?"}]
-
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.markdown(msg["content"])
+        
+    if prompt := st.chat_input("Hỏi bài..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"): st.markdown(prompt)
+        with st.chat_message("assistant"):
+            model = genai.GenerativeModel('gemini-3.6-flash')
+            res = model.generate_content(prompt)
+            st.markdown(res.text)
+            st.session_state.messages.append({"role": "assistant", "content": res.text})
 
-    if not is_premium and st.session_state.chat_count >= 100:
-        st.warning("🛑 Bạn đã đạt giới hạn 100 câu hỏi/ngày của bản Miễn phí. Nâng cấp Premium để chat không giới hạn.")
-    else:
-        if prompt := st.chat_input("Hỏi bài (VD: Giải thích định lý Pytago)"):
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"): st.markdown(prompt)
-                
-            with st.chat_message("assistant"):
-                with st.spinner("Đang suy nghĩ..."):
-                    history_text = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-5:]])
-                    full_prompt = f"Bạn là gia sư thân thiện. Lịch sử:\n{history_text}\n\nTrả lời câu hỏi mới nhất."
-                    response_text = get_ai_response(full_prompt, provider=provider)
-                    st.markdown(response_text)
-                    st.session_state.messages.append({"role": "assistant", "content": response_text})
-                    if not is_premium: st.session_state.chat_count += 1
-
-# --- TAB 2: GIẢI BÀI TẬP QUA ẢNH ---
-with tab_vision:
-    if not is_premium:
-        st.error("🔒 Tính năng này chỉ dành cho Premium.")
-    else:
-        img_source = st.radio("Nguồn ảnh:", ["Chụp ảnh", "Tải ảnh lên"], horizontal=True)
-        image_data = st.camera_input("Chụp bài tập") if img_source == "Chụp ảnh" else st.file_uploader("Tải ảnh", type=["jpg", "png"])
-
-        if image_data:
-            img = Image.open(image_data)
-            st.image(img, width=300)
-            if st.button("Giải bài này"):
-                with st.spinner("Đang phân tích..."):
-                    res_text = get_ai_response("Hãy giải chi tiết bài tập trong ảnh.", image=img, provider=provider)
-                    st.markdown(res_text)
-
-# --- TAB 3: PHÒNG HỌC TẬP (JITSI MEET) ---
+# --- TAB PHÒNG HỌC (STUDY ROOMS) ---
 with tab_room:
-    st.subheader("Phòng Học Nhóm Trực Tuyến")
-    st.info("Tính năng này cho phép bật Camera, Mic và Chia sẻ màn hình (Hoàn toàn miễn phí).")
+    st.subheader("Phòng Học Nhóm")
     
-    room_name = st.text_input("Nhập tên phòng (VD: onthi_toan12)", value="GiaSuAI_PhongChung")
-    
-    if st.button("Tham Gia Phòng"):
-        st.write(f"Đang kết nối vào phòng: **{room_name}**...")
-        jitsi_html = f"""
-        <div id="jitsi-container" style="width: 100%; height: 600px;"></div>
-        <script src="https://meet.jit.si/external_api.js"></script>
-        <script>
-            const domain = "meet.jit.si";
-            const options = {{
-                roomName: "{room_name}",
-                parentNode: document.querySelector('#jitsi-container'),
-                width: "100%",
-                height: 600,
-                configOverwrite: {{ startWithAudioMuted: true, startWithVideoMuted: false }},
-                interfaceConfigOverwrite: {{ DISABLE_JOIN_LEAVE_NOTIFICATIONS: true }}
-            }};
-            const api = new JitsiMeetExternalAPI(domain, options);
-        </script>
-        """
-        components.html(jitsi_html, height=620)
-
-# --- TAB 4: DIỄN ĐÀN & TÀI LIỆU ---
-with tab_forum:
-    st.subheader("Diễn Đàn Hỏi Đáp & Chia Sẻ Đề Thi")
-    
-    with st.expander("➕ Đăng bài viết mới"):
-        title = st.text_input("Tiêu đề bài viết")
-        content = st.text_area("Nội dung (Có thể dán link tài liệu/đề thi vào đây)")
-        if st.button("Đăng bài"):
-            if title and content:
-                try:
-                    supabase.table("forum_posts").insert({
-                        "username": username, "title": title, "content": content
-                    }).execute()
-                    st.toast("✅ Đăng bài thành công!", icon="🎉")
-                    st.rerun()
-                except Exception as e:
-                    st.toast(f"Lỗi đăng bài: {e}", icon="❌")
-            else:
-                st.toast("Vui lòng nhập đủ tiêu đề và nội dung!", icon="⚠️")
-                
+    # Tạo phòng
+    with st.expander("➕ Tạo phòng học mới"):
+        new_room = st.text_input("Tên phòng (VD: onthi_toan12)")
+        room_topic = st.text_input("Chủ đề (VD: Ôn thi giữa kỳ)")
+        is_public = st.checkbox("Phòng công khai (Mọi người đều thấy)", value=True)
+        if st.button("Tạo phòng"):
+            try:
+                supabase.table("study_rooms").insert({
+                    "room_name": new_room, "topic": room_topic, 
+                    "is_public": is_public, "created_by": username
+                }).execute()
+                st.toast("Tạo phòng thành công!")
+            except: st.toast("Lỗi: Tên phòng đã tồn tại.", icon="❌")
+            
     st.divider()
     
+    # Danh sách phòng công khai
+    st.write("### Các phòng công khai đang mở:")
     try:
-        posts = supabase.table("forum_posts").select("*").order("created_at", desc=True).execute()
+        rooms = supabase.table("study_rooms").select("*").eq("is_public", True).execute()
+        if not rooms.data:
+            st.info("Chưa có phòng công khai nào.")
         
-        if not posts.data:
-            st.info("Chưa có bài đăng nào. Hãy là người đầu tiên chia sẻ!")
-            
-        for post in posts.data:
-            with st.container(border=True):
-                st.markdown(f"### {post['title']}")
-                st.caption(f"Đăng bởi: **{post['username']}** | Lúc: {post['created_at'][:16].replace('T', ' ')}")
-                st.write(post['content'])
-                
-                with st.expander(f"💬 Bình luận"):
-                    comments = supabase.table("forum_comments").select("*").eq("post_id", post['id']).order("created_at").execute()
-                    for cmt in comments.data:
-                        st.markdown(f"**{cmt['username']}**: {cmt['comment']}")
-                        
-                    new_cmt = st.text_input("Viết bình luận...", key=f"cmt_{post['id']}")
-                    if st.button("Gửi", key=f"btn_{post['id']}"):
-                        if new_cmt:
-                            supabase.table("forum_comments").insert({
-                                "post_id": post['id'], "username": username, "comment": new_cmt
-                            }).execute()
-                            st.rerun()
+        room_names = [r["room_name"] for r in rooms.data]
+        selected_room = st.selectbox("Chọn phòng để tham gia:", room_names)
+        
+        if selected_room and st.button("Vào phòng"):
+            jitsi_html = f"""
+            <div id="jitsi-container" style="width: 100%; height: 500px;"></div>
+            <script src="https://meet.jit.si/external_api.js"></script>
+            <script>
+                const api = new JitsiMeetExternalAPI("meet.jit.si", {{
+                    roomName: "{selected_room}",
+                    parentNode: document.querySelector('#jitsi-container'),
+                    width: "100%", height: 500,
+                    userInfo: {{ displayName: "{username}" }}
+                }});
+            </script>
+            """
+            components.html(jitsi_html, height=520)
     except Exception as e:
-        st.toast(f"Lỗi tải diễn đàn: {e}", icon="❌")
+        st.error(f"Lỗi tải phòng: {e}")
+
+# --- TAB BẠN BÈ (KẾT BẠN) ---
+with tab_social:
+    st.subheader("Kết Nối Bạn Bè")
+    
+    # Gửi lời mời kết bạn
+    friend_name = st.text_input("Nhập tên người dùng để kết bạn:")
+    if st.button("Gửi lời mời"):
+        if friend_name == username: st.warning("Không thể tự kết bạn với chính mình!")
+        else:
+            try:
+                supabase.table("friendships").insert({"sender": username, "receiver": friend_name}).execute()
+                st.toast("Đã gửi lời mời kết bạn!")
+            except: st.toast("Đã có lỗi xảy ra.", icon="❌")
+            
+    st.divider()
+    
+    # Lời mời đang chờ
+    st.write("### Lời mời kết bạn đang chờ bạn xác nhận:")
+    requests = supabase.table("friendships").select("*").eq("receiver", username).eq("status", "pending").execute()
+    if not requests.data:
+        st.write("Không có lời mời nào.")
+    for req in requests.data:
+        col1, col2 = st.columns([3, 1])
+        with col1: st.write(f"**{req['sender']}** muốn kết bạn với bạn.")
+        with col2:
+            if st.button("Chấp nhận", key=f"acc_{req['id']}"):
+                supabase.table("friendships").update({"status": "accepted"}).eq("id", req['id']).execute()
+                st.rerun()
+
+# --- TAB DIỄN ĐÀN ---
+with tab_forum:
+    st.subheader("Diễn Đàn Học Tập")
+    
+    with st.expander("➕ Đăng bài thảo luận"):
+        title = st.text_input("Tiêu đề")
+        content = st.text_area("Nội dung")
+        if st.button("Đăng bài"):
+            supabase.table("forum_posts").insert({"username": username, "title": title, "content": content}).execute()
+            st.rerun()
+            
+    posts = supabase.table("forum_posts").select("*").order("created_at", desc=True).execute()
+    for post in posts.data:
+        with st.container(border=True):
+            st.markdown(f"### {post['title']}")
+            st.caption(f"Đăng bởi: {post['username']}")
+            st.write(post['content'])
