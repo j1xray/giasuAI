@@ -27,17 +27,14 @@ except Exception as e:
     st.stop()
 
 # ===== 3. ĐĂNG NHẬP / ĐĂNG KÝ =====
-client_auth = login_form(
-    supabase_url=st.secrets["SUPABASE_URL"], 
-    supabase_key=st.secrets["SUPABASE_KEY"]
-)
-
-if not st.session_state.get("authenticated"):
-    st.info("👋 Chào mừng bạn đến với Gia Sư AI. Vui lòng đăng nhập/đăng ký để nhận 7 ngày dùng thử (Premium).")
+try:
+    client_auth = login_form(
+        supabase_url=st.secrets["SUPABASE_URL"], 
+        supabase_key=st.secrets["SUPABASE_KEY"]
+    )
+except Exception as e:
+    st.error(f"Lỗi khởi tạo form đăng nhập: {e}")
     st.stop()
-
-user_id = st.session_state.get("user_id")
-user_email = st.session_state.get("email")
 
 # ===== 4. QUẢN LÝ GÓI DỊCH VỤ (FREEMIUM) =====
 try:
