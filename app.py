@@ -7,61 +7,112 @@ from datetime import datetime, timedelta, timezone
 from PIL import Image
 import google.generativeai as genai
 from supabase import create_client
-from openai import OpenAI
 import streamlit.components.v1 as components
 import random
 
-# ===== 1. CẤU HÌNH TRANG & GIAO DIỆN (CSS) =====
+# ===== 1. CẤU HÌNH TRANG & CSS (GIAO DIỆN CHATGPT) =====
 st.set_page_config(page_title="Gia Sư AI", page_icon="🧠", layout="wide")
 
-# Chèn CSS để đổi Font chữ và làm đẹp Form đăng nhập
 custom_css = """
 <style>
-/* Import font Inter từ Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-/* Áp dụng font cho toàn bộ app */
+/* Font chữ toàn app */
 html, body, [class*="css"] {
     font-family: 'Inter', sans-serif !important;
 }
 
-/* Làm đẹp thẻ đăng nhập */
-.login-card {
-    background-color: #1E1E2E;
+/* Ẩn thanh header mặc định của Streamlit cho giống app thật */
+header {visibility: hidden;}
+
+/* Nền tối cho toàn bộ trang */
+.stApp {
+    background-color: #212121; 
+}
+
+/* Thiết kế Khung Đăng Nhập */
+.login-container {
+    background-color: #2f2f2f;
     padding: 40px;
-    border-radius: 20px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    max-width: 450px;
-    margin: 0 auto;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 420px;
+    margin: 80px auto;
     text-align: center;
-    border: 1px solid #313244;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    border: 1px solid #444;
 }
 .login-title {
-    color: #CBA6F7;
-    font-size: 32px;
-    font-weight: 700;
+    color: white;
+    font-size: 28px;
+    font-weight: 600;
     margin-bottom: 10px;
 }
 .login-subtitle {
-    color: #A6ADC8;
+    color: #b4b4b4;
     font-size: 14px;
     margin-bottom: 30px;
+    line-height: 1.5;
 }
-.divider-text {
-    color: #6C7086;
-    margin: 20px 0;
+.divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: #888;
+    margin: 25px 0;
+    font-size: 12px;
     font-weight: 600;
 }
+.divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #555;
+}
+.divider::before { margin-right: 15px; }
+.divider::after { margin-left: 15px; }
 
-/* Làm đẹp nút bấm */
+/* Tùy chỉnh nút bấm của Streamlit để giống ChatGPT */
 div.stButton > button {
-    border-radius: 10px;
-    font-weight: 600;
-    transition: all 0.3s ease;
+    width: 100%;
+    background-color: #2f2f2f;
+    color: white;
+    border: 1px solid #555;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 15px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 div.stButton > button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(203, 166, 247, 0.3);
+    background-color: #3f3f3f;
+    border-color: #777;
+    color: white;
+}
+
+/* Nút Continue (Email) màu trắng */
+div.stButton > button[kind="primary"] {
+    background-color: white;
+    color: black;
+    border: none;
+}
+div.stButton > button[kind="primary"]:hover {
+    background-color: #e0e0e0;
+    color: black;
+}
+
+/* Tùy chỉnh ô nhập liệu */
+div[data-testid="stTextInput"] input {
+    background-color: #212121 !important;
+    color: white !important;
+    border: 1px solid #555 !important;
+    border-radius: 8px !important;
+    padding: 12px !important;
+}
+div[data-testid="stTextInput"] input:focus {
+    border-color: #888 !important;
 }
 </style>
 """
@@ -75,50 +126,58 @@ except Exception as e:
     st.error(f"❌ Lỗi cấu hình: {e}")
     st.stop()
 
-# ===== 3. ĐĂNG NHẬP (GIAO DIỆN MỚI) =====
+# ===== 3. FORM ĐĂNG NHẬP (GIAO DIỆN CHATGPT) =====
 if not st.user.is_logged_in and "guest_user" not in st.session_state:
-    st.markdown("<br><br>", unsafe_allow_html=True)
     
-    # Khung đăng nhập được thiết kế lại bằng HTML/CSS
+    # Gọi HTML cho khung đăng nhập
     st.markdown("""
-    <div class="login-card">
-        <div class="login-title">🧠 Gia Sư AI</div>
-        <div class="login-subtitle">Nền tảng học tập & kết nối thông minh</div>
+    <div class="login-container">
+        <div class="login-title">Log in or sign up</div>
+        <div class="login-subtitle">Bạn sẽ có trải nghiệm học tập tốt hơn,<br>có thể lưu lịch sử chat và tải file lên.</div>
     </div>
     """, unsafe_allow_html=True)
     
-    # Đặt các nút bấm vào giữa màn hình
+    # Đặt các nút bấm bằng Streamlit (phải nằm ngoài khung HTML để hoạt động)
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔑 Đăng nhập bằng Google", use_container_width=True, type="primary"):
+        # Nút Google (Dùng type primary để nổi bật)
+        if st.button("🌐 Continue with Google", use_container_width=True):
             st.login("google")
         
-        st.markdown("<div class='divider-text'>— HOẶC —</div>", unsafe_allow_html=True)
+        st.markdown('<div class="divider">OR</div>', unsafe_allow_html=True)
         
-        if st.button("👤 Vào với tư cách Khách (Guest)", use_container_width=True):
-            st.session_state.guest_user = f"Guest_{random.randint(1000, 9999)}"
-            st.rerun()
+        # Ô nhập Email
+        email_input = st.text_input("Email address", placeholder="Email address", label_visibility="collapsed")
+        
+        # Nút Continue
+        if st.button("Continue", use_container_width=True, type="primary"):
+            if email_input:
+                # Tạo tên user từ phần trước chữ @
+                user_prefix = email_input.split('@')[0]
+                st.session_state.guest_user = user_prefix
+                st.rerun()
+            else:
+                st.warning("Vui lòng nhập Email!")
     st.stop()
 
-# Xác định user hiện tại
+# ===== 4. XÁC ĐỊNH USER =====
 if "guest_user" in st.session_state:
     username = st.session_state.guest_user
     is_admin = False
     user_avatar = "👤"
 else:
     username = st.user.email.split('@')[0]
-    is_admin = (st.user.email == "email_admin_cua_ban@gmail.com") # Thay email admin thật của bạn
+    is_admin = (st.user.email == "admin_email_cua_ban@gmail.com") # Sửa email admin
     user_avatar = st.user.picture
 
-# Lưu user vào database nếu chưa tồn tại (Tránh lỗi khóa ngoại)
+# Lưu user vào DB nếu chưa có
 try:
     user_check = supabase.table("users").select("*").eq("username", username).execute()
     if not user_check.data:
         supabase.table("users").insert({"username": username, "password": "oauth_user"}).execute()
 except: pass
 
-# ===== 4. QUẢN LÝ GÓI DỊCH VỤ =====
+# ===== 5. QUẢN LÝ GÓI DỊCH VỤ =====
 now = datetime.now(timezone.utc)
 is_premium = False
 try:
@@ -132,7 +191,7 @@ try:
         is_premium = now < expiry_date
 except: pass
 
-# ===== 5. SIDEBAR (MENU) =====
+# ===== 6. SIDEBAR (MENU CHÍNH) =====
 with st.sidebar:
     col_avt, col_info = st.columns([1, 3])
     with col_avt:
@@ -163,14 +222,14 @@ with st.sidebar:
             except Exception as e: 
                 st.toast("❌ Lỗi: Tên nhóm có thể đã tồn tại", icon="❌")
             
-    if st.button("Đăng xuất", use_container_width=True, type="secondary"):
+    if st.button("Đăng xuất", use_container_width=True):
         if "guest_user" in st.session_state:
             del st.session_state.guest_user
         if st.user.is_logged_in:
             st.logout()
         st.rerun()
 
-# ===== 6. CÁC TABS CHÍNH =====
+# ===== 7. CÁC TABS CHÍNH =====
 tab_chat, tab_room, tab_social, tab_forum = st.tabs(["💬 Chat AI", "🎥 Phòng Học", "👫 Bạn Bè", "📚 Diễn Đàn"])
 
 # --- TAB CHAT AI ---
@@ -192,7 +251,7 @@ with tab_chat:
             except Exception as e:
                 st.toast(f"Lỗi AI: {e}", icon="❌")
 
-# --- TAB PHÒNG HỌC (STUDY ROOMS) ---
+# --- TAB PHÒNG HỌC ---
 with tab_room:
     st.subheader("Phòng Học Nhóm")
     
@@ -256,7 +315,6 @@ with tab_social:
     
     st.write("### Lời mời kết bạn đang chờ:")
     try:
-        # Thêm try-except để tránh lỗi sập app như trong ảnh
         requests = supabase.table("friendships").select("*").eq("receiver", username).eq("status", "pending").execute()
         if not requests.data:
             st.write("Không có lời mời nào.")
@@ -269,7 +327,7 @@ with tab_social:
                         supabase.table("friendships").update({"status": "accepted"}).eq("id", req['id']).execute()
                         st.rerun()
     except Exception as e:
-        st.info("Hệ thống kết bạn đang được bảo trì hoặc bạn chưa tạo bảng friendships.")
+        st.info("Hệ thống kết bạn đang được bảo trì.")
 
 # --- TAB DIỄN ĐÀN ---
 with tab_forum:
