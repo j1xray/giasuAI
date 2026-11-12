@@ -28,10 +28,7 @@ except Exception as e:
 
 # ===== 3. ĐĂNG NHẬP / ĐĂNG KÝ =====
 try:
-    client_auth = login_form(
-        supabase_url=st.secrets["SUPABASE_URL"], 
-        supabase_key=st.secrets["SUPABASE_KEY"]
-    )
+    client_auth = login_form()
 except Exception as e:
     st.error(f"Lỗi khởi tạo form đăng nhập: {e}")
     st.stop()
