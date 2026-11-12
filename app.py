@@ -24,12 +24,14 @@ except Exception as e:
 
 # ===== 3. ĐĂNG NHẬP =====
 try:
+    # st-login-form tự động đọc Secrets
     client_auth = login_form()
 except Exception as e:
+    # Bắt lỗi nếu người dùng bấm Đăng ký với tên đã tồn tại
     if "23505" in str(e) or "duplicate key" in str(e):
-        st.toast("❌ Tên đăng nhập này đã tồn tại!", icon="⚠️")
+        st.error("❌ Tên đăng nhập này đã có người sử dụng! Hãy chuyển sang tab 'Login' để đăng nhập, hoặc chọn tên khác.")
     else:
-        st.toast(f"❌ Lỗi đăng nhập: {e}", icon="⚠️")
+        st.error(f"❌ Lỗi đăng nhập: {e}")
     st.stop()
 
 if not st.session_state.get("authenticated"):
