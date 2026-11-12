@@ -25,12 +25,20 @@ except Exception as e:
     st.stop()
 
 # ===== 3. ĐĂNG NHẬP / ĐĂNG KÝ =====
-client_auth = login_form()
+# ===== 3. ĐĂNG NHẬP / ĐĂNG KÝ =====
+try:
+    client_auth = login_form()
+except Exception as e:
+    # Bắt lỗi trùng tên đăng nhập (Mã lỗi 23505 của Postgres)
+    if "23505" in str(e) or "duplicate key" in str(e):
+        st.error("❌ Tên đăng nhập này đã tồn tại! Vui lòng chọn tên khác hoặc chuyển sang tab Đăng nhập.")
+    else:
+        st.error(f"❌ Lỗi đăng nhập/đăng ký: {e}")
+    st.stop()
 
 if not st.session_state.get("authenticated"):
     st.info("👋 Chào mừng bạn đến với Gia Sư AI. Vui lòng đăng nhập/đăng ký để nhận 7 ngày dùng thử (Premium).")
     st.stop()
-
 # Lấy username thay vì user_id
 username = st.session_state.get("username")
 if not username:
