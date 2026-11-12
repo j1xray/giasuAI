@@ -22,7 +22,7 @@ html, body, [class*="css"] {
     font-family: 'Inter', sans-serif !important;
 }
 
-/* Ẩn thanh header mặc định của Streamlit cho giống app thật */
+/* Ẩn thanh header mặc định của Streamlit */
 header {visibility: hidden;}
 
 /* Nền tối cho toàn bộ trang */
@@ -71,7 +71,7 @@ header {visibility: hidden;}
 .divider::before { margin-right: 15px; }
 .divider::after { margin-left: 15px; }
 
-/* Tùy chỉnh nút bấm của Streamlit để giống ChatGPT */
+/* Tùy chỉnh nút bấm */
 div.stButton > button {
     width: 100%;
     background-color: #2f2f2f;
@@ -82,9 +82,6 @@ div.stButton > button {
     font-size: 15px;
     font-weight: 500;
     transition: all 0.2s ease;
-    display: flex;
-    justify-content: center;
-    align-items: center;
 }
 div.stButton > button:hover {
     background-color: #3f3f3f;
@@ -92,7 +89,7 @@ div.stButton > button:hover {
     color: white;
 }
 
-/* Nút Continue (Email) màu trắng */
+/* Nút Continue màu trắng */
 div.stButton > button[kind="primary"] {
     background-color: white;
     color: black;
@@ -126,10 +123,9 @@ except Exception as e:
     st.error(f"❌ Lỗi cấu hình: {e}")
     st.stop()
 
-# ===== 3. FORM ĐĂNG NHẬP (GIAO DIỆN CHATGPT) =====
+# ===== 3. FORM ĐĂNG NHẬP =====
 if not st.user.is_logged_in and "guest_user" not in st.session_state:
     
-    # Gọi HTML cho khung đăng nhập
     st.markdown("""
     <div class="login-container">
         <div class="login-title">Log in or sign up</div>
@@ -137,27 +133,27 @@ if not st.user.is_logged_in and "guest_user" not in st.session_state:
     </div>
     """, unsafe_allow_html=True)
     
-    # Đặt các nút bấm bằng Streamlit (phải nằm ngoài khung HTML để hoạt động)
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        # Nút Google (Dùng type primary để nổi bật)
+        # Nút Google
         if st.button("🌐 Continue with Google", use_container_width=True):
-            st.login("google")
+            try:
+                st.login("google")
+            except Exception as e:
+                st.warning("Chức năng đăng nhập Google đang bảo trì, vui lòng dùng tài khoản Khách bên dưới.")
         
         st.markdown('<div class="divider">OR</div>', unsafe_allow_html=True)
         
-        # Ô nhập Email
-        email_input = st.text_input("Email address", placeholder="Email address", label_visibility="collapsed")
+        # Ô nhập tên Khách
+        guest_name = st.text_input("Tên của bạn", placeholder="Nhập tên của bạn (VD: nghia123)", label_visibility="collapsed")
         
-        # Nút Continue
-        if st.button("Continue", use_container_width=True, type="primary"):
-            if email_input:
-                # Tạo tên user từ phần trước chữ @
-                user_prefix = email_input.split('@')[0]
-                st.session_state.guest_user = user_prefix
-                st.rerun()
+        # Nút Continue (Guest)
+        if st.button("Continue as Guest", use_container_width=True, type="primary"):
+            if guest_name.strip():
+                st.session_state.guest_user = guest_name.strip()
             else:
-                st.warning("Vui lòng nhập Email!")
+                st.session_state.guest_user = f"Guest_{random.randint(1000, 9999)}"
+            st.rerun()
     st.stop()
 
 # ===== 4. XÁC ĐỊNH USER =====
@@ -167,7 +163,7 @@ if "guest_user" in st.session_state:
     user_avatar = "👤"
 else:
     username = st.user.email.split('@')[0]
-    is_admin = (st.user.email == "admin_email_cua_ban@gmail.com") # Sửa email admin
+    is_admin = (st.user.email == "email_admin_cua_ban@gmail.com") # Sửa email admin thật của bạn
     user_avatar = st.user.picture
 
 # Lưu user vào DB nếu chưa có
