@@ -9,7 +9,7 @@ import google.generativeai as genai
 from supabase import create_client
 from st_login_form import login_form
 from openai import OpenAI
-from streamlit_embedcode import jitsi_meet
+import streamlit.components.v1 as components # Thay thế streamlit_embedcode
 
 # ===== 1. CẤU HÌNH TRANG =====
 st.set_page_config(page_title="Gia Sư AI", page_icon="🧠", layout="wide")
@@ -75,7 +75,6 @@ with st.sidebar:
     st.success(f"Chào, **{username}**!")
     st.markdown(f"**Gói:** `{plan_type}`")
     
-    # ĐÃ CẬP NHẬT GIÁ 20K
     if not is_premium:
         st.warning("Bạn đang dùng bản Miễn phí (Giới hạn 100 câu hỏi/ngày). Nâng cấp để mở khóa toàn bộ!")
         if st.button("💳 Nâng cấp Premium (20k/tháng)", use_container_width=True):
@@ -85,8 +84,8 @@ with st.sidebar:
                 headers = {"Authorization": f"Bearer {auth_base64}", "Content-Type": "application/json"}
                 
                 payload = {
-                    "bankPublicId": "bank_abc123",  # Bạn nhớ thay mã ngân hàng thật của ApiPay vào đây
-                    "amount": 20000,                # ĐÃ CẬP NHẬT GIÁ 20K
+                    "bankPublicId": "bank_abc123",  # Thay bằng mã ngân hàng thật của ApiPay
+                    "amount": 20000,
                     "content": f"UPGRADE_{username}"
                 }
                 
@@ -152,7 +151,6 @@ with tab_chat:
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-    # ĐÃ CẬP NHẬT GIỚI HẠN THÀNH 100 CÂU
     if not is_premium and st.session_state.chat_count >= 100:
         st.warning("🛑 Bạn đã đạt giới hạn 100 câu hỏi/ngày của bản Miễn phí. Nâng cấp Premium để chat không giới hạn.")
     else:
@@ -185,23 +183,38 @@ with tab_vision:
                     res_text = get_ai_response("Hãy giải chi tiết bài tập trong ảnh.", image=img, provider=provider)
                     st.markdown(res_text)
 
-# --- TAB 3: PHÒNG HỌC TẬP (JITSI MEET) ---
+# --- TAB 3: PHÒNG HỌC TẬP (DÙNG COMPONENTS.HTML) ---
 with tab_room:
     st.subheader("Phòng Học Nhóm Trực Tuyến")
-    st.info("Tính năng này cho phép bật Camera, Mic và Chia sẻ màn hình (Hoàn toàn miễn phí, không giới hạn thời gian).")
+    st.info("Tính năng này cho phép bật Camera, Mic và Chia sẻ màn hình (Hoàn toàn miễn phí).")
     
     room_name = st.text_input("Nhập tên phòng (VD: onthi_toan12)", value="GiaSuAI_PhongChung")
     
     if st.button("Tham Gia Phòng"):
         st.write(f"Đang kết nối vào phòng: **{room_name}**...")
-        jitsi_meet(
-            room_name=room_name,
-            subject="Học nhóm Gia Sư AI",
-            width=800,
-            height=500,
-            display_name=username,
-            domain="meet.jit.si",
-        )
+        # Mã HTML để nhúng Jitsi Meet
+        jitsi_html = f"""
+        <div id="jitsi-container" style="width: 100%; height: 600px;"></div>
+        <script src="https://meet.jit.si/external_api.js"></script>
+        <script>
+            const domain = "meet.jit.si";
+            const options = {{
+                roomName: "{room_name}",
+                parentNode: document.querySelector('#jitsi-container'),
+                width: "100%",
+                height: 600,
+                configOverwrite: {{
+                    startWithAudioMuted: true,
+                    startWithVideoMuted: false
+                }},
+                interfaceConfigOverwrite: {{
+                    DISABLE_JOIN_LEAVE_NOTIFICATIONS: true
+                }}
+            }};
+            const api = new JitsiMeetExternalAPI(domain, options);
+        </script>
+        """
+        components.html(jitsi_html, height=620)
 
 # --- TAB 4: DIỄN ĐÀN & TÀI LIỆU ---
 with tab_forum:
