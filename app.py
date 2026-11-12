@@ -119,25 +119,25 @@ with st.sidebar:
 # ===== 6. HÀM GỌI AI (ĐÃ CẬP NHẬT MODEL MỚI NHẤT) =====
 def get_ai_response(prompt, image=None, provider="gemini"):
     try:
-        if provider == "Google Gemini 2.5":
-            # Dùng model 2.5-flash mới nhất
-            model = genai.GenerativeModel('gemini-2.5-flash')
+        if provider == "Google Gemini 2.5": # Tên hiển thị trong selectbox
+            # 1. Cập nhật model Gemini mới nhất
+            model = genai.GenerativeModel('gemini-3.6-flash')
             content = [prompt]
             if image: content.append(image)
             return model.generate_content(content).text
             
-        elif provider == "Groq (Llama 3.3)":
+        elif provider == "Groq (Llama 3.3)": # Tên hiển thị trong selectbox
             if image: return "⚠️ Groq không hỗ trợ đọc ảnh. Vui lòng chọn Gemini!"
             client = OpenAI(api_key=st.secrets["GROQ_API_KEY"], base_url="https://api.groq.com/openai/v1")
-            # Dùng model Llama 3.3 mới nhất
-            res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": prompt}])
+            # 2. Cập nhật model Groq mới nhất
+            res = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": prompt}])
             return res.choices[0].message.content
             
         elif provider == "OpenRouter":
             if image: return "⚠️ OpenRouter không hỗ trợ đọc ảnh. Vui lòng chọn Gemini!"
             client = OpenAI(api_key=st.secrets["OPENROUTER_API_KEY"], base_url="https://openrouter.ai/api/v1")
-            # Dùng model Llama 3.3 miễn phí mới nhất
-            res = client.chat.completions.create(model="meta-llama/llama-3.3-70b-instruct:free", messages=[{"role": "user", "content": prompt}])
+            # 3. Cập nhật model OpenRouter miễn phí mới nhất
+            res = client.chat.completions.create(model="openai/gpt-oss-120b:free", messages=[{"role": "user", "content": prompt}])
             return res.choices[0].message.content
     except Exception as e:
         st.toast(f"Lỗi AI: {str(e)[:100]}...", icon="❌")
