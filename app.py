@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from PIL import Image
 import google.generativeai as genai
 from supabase import create_client
+from openai import OpenAI
 import streamlit.components.v1 as components
 import random
 
@@ -16,100 +17,38 @@ st.set_page_config(page_title="Gia Sư AI", page_icon="🧠", layout="wide")
 custom_css = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-/* Font chữ toàn app */
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif !important;
-}
-
-/* Ẩn thanh header mặc định của Streamlit */
+html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 header {visibility: hidden;}
+.stApp { background-color: #212121; }
 
-/* Nền tối cho toàn bộ trang */
-.stApp {
-    background-color: #212121; 
-}
-
-/* Thiết kế Khung Đăng Nhập */
+/* Khung Đăng Nhập */
 .login-container {
-    background-color: #2f2f2f;
-    padding: 40px;
-    border-radius: 16px;
-    width: 100%;
-    max-width: 420px;
-    margin: 80px auto;
-    text-align: center;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
-    border: 1px solid #444;
+    background-color: #2f2f2f; padding: 40px; border-radius: 16px;
+    width: 100%; max-width: 420px; margin: 80px auto; text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4); border: 1px solid #444;
 }
-.login-title {
-    color: white;
-    font-size: 28px;
-    font-weight: 600;
-    margin-bottom: 10px;
-}
-.login-subtitle {
-    color: #b4b4b4;
-    font-size: 14px;
-    margin-bottom: 30px;
-    line-height: 1.5;
-}
+.login-title { color: white; font-size: 28px; font-weight: 600; margin-bottom: 10px; }
+.login-subtitle { color: #b4b4b4; font-size: 14px; margin-bottom: 30px; line-height: 1.5; }
 .divider {
-    display: flex;
-    align-items: center;
-    text-align: center;
-    color: #888;
-    margin: 25px 0;
-    font-size: 12px;
-    font-weight: 600;
+    display: flex; align-items: center; text-align: center;
+    color: #888; margin: 25px 0; font-size: 12px; font-weight: 600;
 }
-.divider::before, .divider::after {
-    content: '';
-    flex: 1;
-    border-bottom: 1px solid #555;
-}
-.divider::before { margin-right: 15px; }
-.divider::after { margin-left: 15px; }
+.divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid #555; }
+.divider::before { margin-right: 15px; } .divider::after { margin-left: 15px; }
 
-/* Tùy chỉnh nút bấm */
+/* Nút Bấm */
 div.stButton > button {
-    width: 100%;
-    background-color: #2f2f2f;
-    color: white;
-    border: 1px solid #555;
-    border-radius: 8px;
-    padding: 12px 16px;
-    font-size: 15px;
-    font-weight: 500;
-    transition: all 0.2s ease;
+    width: 100%; background-color: #2f2f2f; color: white; border: 1px solid #555;
+    border-radius: 8px; padding: 12px 16px; font-size: 15px; font-weight: 500; transition: all 0.2s ease;
 }
-div.stButton > button:hover {
-    background-color: #3f3f3f;
-    border-color: #777;
-    color: white;
-}
+div.stButton > button:hover { background-color: #3f3f3f; border-color: #777; color: white; }
+div.stButton > button[kind="primary"] { background-color: white; color: black; border: none; }
+div.stButton > button[kind="primary"]:hover { background-color: #e0e0e0; color: black; }
 
-/* Nút Continue màu trắng */
-div.stButton > button[kind="primary"] {
-    background-color: white;
-    color: black;
-    border: none;
-}
-div.stButton > button[kind="primary"]:hover {
-    background-color: #e0e0e0;
-    color: black;
-}
-
-/* Tùy chỉnh ô nhập liệu */
+/* Ô Nhập Liệu */
 div[data-testid="stTextInput"] input {
-    background-color: #212121 !important;
-    color: white !important;
-    border: 1px solid #555 !important;
-    border-radius: 8px !important;
-    padding: 12px !important;
-}
-div[data-testid="stTextInput"] input:focus {
-    border-color: #888 !important;
+    background-color: #212121 !important; color: white !important;
+    border: 1px solid #555 !important; border-radius: 8px !important; padding: 12px !important;
 }
 </style>
 """
@@ -123,7 +62,7 @@ except Exception as e:
     st.error(f"❌ Lỗi cấu hình: {e}")
     st.stop()
 
-# ===== 3. FORM ĐĂNG NHẬP =====
+# ===== 3. FORM ĐĂNG NHẬP (GOOGLE & GUEST) =====
 if not st.user.is_logged_in and "guest_user" not in st.session_state:
     
     st.markdown("""
@@ -135,19 +74,16 @@ if not st.user.is_logged_in and "guest_user" not in st.session_state:
     
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        # Nút Google
         if st.button("🌐 Continue with Google", use_container_width=True):
             try:
                 st.login("google")
-            except Exception as e:
-                st.warning("Chức năng đăng nhập Google đang bảo trì, vui lòng dùng tài khoản Khách bên dưới.")
+            except Exception:
+                st.warning("⚠️ Đăng nhập Google đang bảo trì. Vui lòng dùng tài khoản Khách bên dưới.")
         
         st.markdown('<div class="divider">OR</div>', unsafe_allow_html=True)
         
-        # Ô nhập tên Khách
         guest_name = st.text_input("Tên của bạn", placeholder="Nhập tên của bạn (VD: nghia123)", label_visibility="collapsed")
         
-        # Nút Continue (Guest)
         if st.button("Continue as Guest", use_container_width=True, type="primary"):
             if guest_name.strip():
                 st.session_state.guest_user = guest_name.strip()
@@ -163,10 +99,9 @@ if "guest_user" in st.session_state:
     user_avatar = "👤"
 else:
     username = st.user.email.split('@')[0]
-    is_admin = (st.user.email == "email_admin_cua_ban@gmail.com") # Sửa email admin thật của bạn
+    is_admin = (st.user.email == "email_admin_cua_ban@gmail.com") # Sửa email admin thật
     user_avatar = st.user.picture
 
-# Lưu user vào DB nếu chưa có
 try:
     user_check = supabase.table("users").select("*").eq("username", username).execute()
     if not user_check.data:
@@ -201,6 +136,13 @@ with st.sidebar:
     
     st.divider()
     
+    # === CHỌN MODEL AI ===
+    st.subheader("🤖 Chọn Trợ lý AI")
+    provider = st.selectbox("Nền tảng", ["Google Gemini (Khuyên dùng)", "Groq (Llama 3.3)", "OpenRouter (Mixtral)"])
+    
+    st.divider()
+    
+    # === TẠO NHÓM ===
     st.subheader("👥 Nhóm học tập")
     with st.expander("➕ Tạo nhóm mới"):
         group_name = st.text_input("Tên nhóm")
@@ -225,10 +167,34 @@ with st.sidebar:
             st.logout()
         st.rerun()
 
-# ===== 7. CÁC TABS CHÍNH =====
-tab_chat, tab_room, tab_social, tab_forum = st.tabs(["💬 Chat AI", "🎥 Phòng Học", "👫 Bạn Bè", "📚 Diễn Đàn"])
+# ===== 7. HÀM GỌI AI ĐA NỀN TẢNG =====
+def get_ai_response(prompt, image=None, provider="Google Gemini (Khuyên dùng)"):
+    try:
+        if provider == "Google Gemini (Khuyên dùng)":
+            model = genai.GenerativeModel('gemini-3.6-flash')
+            content = [prompt]
+            if image: content.append(image)
+            return model.generate_content(content).text
+            
+        elif provider == "Groq (Llama 3.3)":
+            if image: return "⚠️ Groq không hỗ trợ đọc ảnh. Vui lòng chọn Gemini!"
+            client = OpenAI(api_key=st.secrets["GROQ_API_KEY"], base_url="https://api.groq.com/openai/v1")
+            res = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": prompt}])
+            return res.choices[0].message.content
+            
+        elif provider == "OpenRouter (Mixtral)":
+            if image: return "⚠️ OpenRouter không hỗ trợ đọc ảnh. Vui lòng chọn Gemini!"
+            client = OpenAI(api_key=st.secrets["OPENROUTER_API_KEY"], base_url="https://openrouter.ai/api/v1")
+            res = client.chat.completions.create(model="openai/gpt-oss-120b:free", messages=[{"role": "user", "content": prompt}])
+            return res.choices[0].message.content
+    except Exception as e:
+        st.toast(f"Lỗi AI: {str(e)[:100]}...", icon="❌")
+        return "Hiện tại không thể kết nối với AI. Vui lòng thử lại sau giây lát."
 
-# --- TAB CHAT AI ---
+# ===== 8. CÁC TABS CHÍNH =====
+tab_chat, tab_vision, tab_room, tab_social, tab_forum = st.tabs(["💬 Chat AI", "📸 Giải Bài Tập", "🎥 Phòng Học", "👫 Bạn Bè", "📚 Diễn Đàn"])
+
+# --- TAB 1: CHAT AI ---
 with tab_chat:
     if "messages" not in st.session_state:
         st.session_state.messages = [{"role": "assistant", "content": "Chào bạn! Mình có thể giúp gì hôm nay?"}]
@@ -239,15 +205,32 @@ with tab_chat:
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.markdown(prompt)
         with st.chat_message("assistant"):
-            try:
-                model = genai.GenerativeModel('gemini-3.6-flash')
-                res = model.generate_content(prompt)
-                st.markdown(res.text)
-                st.session_state.messages.append({"role": "assistant", "content": res.text})
-            except Exception as e:
-                st.toast(f"Lỗi AI: {e}", icon="❌")
+            with st.spinner("Đang suy nghĩ..."):
+                # Lấy lịch sử 5 tin nhắn gần nhất
+                history_text = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-5:]])
+                full_prompt = f"Bạn là gia sư thân thiện. Lịch sử:\n{history_text}\n\nTrả lời câu hỏi mới nhất."
+                
+                res_text = get_ai_response(full_prompt, provider=provider)
+                st.markdown(res_text)
+                st.session_state.messages.append({"role": "assistant", "content": res_text})
 
-# --- TAB PHÒNG HỌC ---
+# --- TAB 2: GIẢI BÀI TẬP QUA ẢNH ---
+with tab_vision:
+    if not is_premium:
+        st.error("🔒 Tính năng này chỉ dành cho tài khoản Premium.")
+    else:
+        img_source = st.radio("Nguồn ảnh:", ["Chụp ảnh", "Tải ảnh lên"], horizontal=True)
+        image_data = st.camera_input("Chụp bài tập") if img_source == "Chụp ảnh" else st.file_uploader("Tải ảnh", type=["jpg", "png"])
+
+        if image_data:
+            img = Image.open(image_data)
+            st.image(img, width=300)
+            if st.button("Giải bài này"):
+                with st.spinner("Đang phân tích..."):
+                    res_text = get_ai_response("Hãy giải chi tiết bài tập trong ảnh.", image=img, provider=provider)
+                    st.markdown(res_text)
+
+# --- TAB 3: PHÒNG HỌC ---
 with tab_room:
     st.subheader("Phòng Học Nhóm")
     
@@ -292,9 +275,9 @@ with tab_room:
                 """
                 components.html(jitsi_html, height=520)
     except Exception as e:
-        st.error(f"Lỗi tải danh sách phòng: {e}")
+        st.toast(f"Lỗi tải danh sách phòng: {e}", icon="❌")
 
-# --- TAB BẠN BÈ ---
+# --- TAB 4: BẠN BÈ ---
 with tab_social:
     st.subheader("Kết Nối Bạn Bè")
     
@@ -323,9 +306,9 @@ with tab_social:
                         supabase.table("friendships").update({"status": "accepted"}).eq("id", req['id']).execute()
                         st.rerun()
     except Exception as e:
-        st.info("Hệ thống kết bạn đang được bảo trì.")
+        st.toast("Lỗi tải danh sách bạn bè.", icon="❌")
 
-# --- TAB DIỄN ĐÀN ---
+# --- TAB 5: DIỄN ĐÀN ---
 with tab_forum:
     st.subheader("Diễn Đàn Học Tập")
     
