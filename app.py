@@ -9,7 +9,7 @@ import google.generativeai as genai
 from supabase import create_client
 from st_login_form import login_form
 from openai import OpenAI
-import streamlit.components.v1 as components # Thay thế streamlit_embedcode
+import streamlit.components.v1 as components
 
 # ===== 1. CẤU HÌNH TRANG =====
 st.set_page_config(page_title="Gia Sư AI", page_icon="🧠", layout="wide")
@@ -84,7 +84,7 @@ with st.sidebar:
                 headers = {"Authorization": f"Bearer {auth_base64}", "Content-Type": "application/json"}
                 
                 payload = {
-                    "bankPublicId": "bank_abc123",  # Thay bằng mã ngân hàng thật của ApiPay
+                    "bankPublicId": "bank_abc123",  # Bạn nhớ thay mã ngân hàng thật của ApiPay vào đây
                     "amount": 20000,
                     "content": f"UPGRADE_{username}"
                 }
@@ -101,7 +101,8 @@ with st.sidebar:
     
     st.divider()
     st.subheader("🤖 Chọn Trợ lý AI")
-    provider = st.selectbox("Nền tảng", ["Google Gemini 2.0", "Groq (Llama 3.3)", "OpenRouter"])
+    # ĐÃ CẬP NHẬT TÊN MODEL MỚI
+    provider = st.selectbox("Nền tảng", ["Google Gemini 2.5", "Groq (Llama 3.3)", "OpenRouter"])
     
     st.divider()
     with st.expander("📞 Liên hệ Admin"):
@@ -113,24 +114,27 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-# ===== 6. HÀM GỌI AI =====
+# ===== 6. HÀM GỌI AI (ĐÃ CẬP NHẬT MODEL MỚI NHẤT) =====
 def get_ai_response(prompt, image=None, provider="gemini"):
     try:
-        if provider == "Google Gemini 2.0":
-            model = genai.GenerativeModel('gemini-2.0-flash')
+        if provider == "Google Gemini 2.5":
+            # Dùng model 2.5-flash mới nhất
+            model = genai.GenerativeModel('gemini-2.5-flash')
             content = [prompt]
             if image: content.append(image)
             return model.generate_content(content).text
             
         elif provider == "Groq (Llama 3.3)":
-            if image: return "⚠️ Groq không hỗ trợ đọc ảnh. Chọn Gemini!"
+            if image: return "⚠️ Groq không hỗ trợ đọc ảnh. Vui lòng chọn Gemini!"
             client = OpenAI(api_key=st.secrets["GROQ_API_KEY"], base_url="https://api.groq.com/openai/v1")
+            # Dùng model Llama 3.3 mới nhất
             res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": prompt}])
             return res.choices[0].message.content
             
         elif provider == "OpenRouter":
-            if image: return "⚠️ OpenRouter không hỗ trợ đọc ảnh. Chọn Gemini!"
+            if image: return "⚠️ OpenRouter không hỗ trợ đọc ảnh. Vui lòng chọn Gemini!"
             client = OpenAI(api_key=st.secrets["OPENROUTER_API_KEY"], base_url="https://openrouter.ai/api/v1")
+            # Dùng model Llama 3.3 miễn phí mới nhất
             res = client.chat.completions.create(model="meta-llama/llama-3.3-70b-instruct:free", messages=[{"role": "user", "content": prompt}])
             return res.choices[0].message.content
     except Exception as e:
@@ -183,7 +187,7 @@ with tab_vision:
                     res_text = get_ai_response("Hãy giải chi tiết bài tập trong ảnh.", image=img, provider=provider)
                     st.markdown(res_text)
 
-# --- TAB 3: PHÒNG HỌC TẬP (DÙNG COMPONENTS.HTML) ---
+# --- TAB 3: PHÒNG HỌC TẬP (JITSI MEET) ---
 with tab_room:
     st.subheader("Phòng Học Nhóm Trực Tuyến")
     st.info("Tính năng này cho phép bật Camera, Mic và Chia sẻ màn hình (Hoàn toàn miễn phí).")
@@ -192,7 +196,6 @@ with tab_room:
     
     if st.button("Tham Gia Phòng"):
         st.write(f"Đang kết nối vào phòng: **{room_name}**...")
-        # Mã HTML để nhúng Jitsi Meet
         jitsi_html = f"""
         <div id="jitsi-container" style="width: 100%; height: 600px;"></div>
         <script src="https://meet.jit.si/external_api.js"></script>
@@ -203,13 +206,8 @@ with tab_room:
                 parentNode: document.querySelector('#jitsi-container'),
                 width: "100%",
                 height: 600,
-                configOverwrite: {{
-                    startWithAudioMuted: true,
-                    startWithVideoMuted: false
-                }},
-                interfaceConfigOverwrite: {{
-                    DISABLE_JOIN_LEAVE_NOTIFICATIONS: true
-                }}
+                configOverwrite: {{ startWithAudioMuted: true, startWithVideoMuted: false }},
+                interfaceConfigOverwrite: {{ DISABLE_JOIN_LEAVE_NOTIFICATIONS: true }}
             }};
             const api = new JitsiMeetExternalAPI(domain, options);
         </script>
