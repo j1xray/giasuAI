@@ -1,6 +1,7 @@
 streamlit
-supabase
+supabase==1.2.0
 st-login-form
 google-generativeai
 openai
 Pillow
+requests
