@@ -156,7 +156,7 @@ if not st.user.is_logged_in and "guest_user" not in st.session_state:
     st.stop()
 
 # ===== 5. USER INFO & ADMIN =====
-ADMIN_EMAIL = "email_cua_ban@gmail.com" # Thay email của bạn vào đây
+ADMIN_EMAIL = "j1xray0@gmail.com" # Thay email của bạn vào đây
 username = st.session_state.get("guest_user") or st.user.email.split('@')[0]
 is_admin = (st.user.email == ADMIN_EMAIL) if st.user.is_logged_in else False
 
