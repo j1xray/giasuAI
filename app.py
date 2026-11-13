@@ -76,6 +76,7 @@ if not st.user.is_logged_in and "guest_user" not in st.session_state:
     st.stop()
 
 # ===== 4. XÁC ĐỊNH USER & ADMIN =====
+# ⚠️ BẠN NHỚ THAY EMAIL ADMIN CỦA BẠN VÀO ĐÂY ĐỂ CÓ QUYỀN TẠO NHÓM CỘNG ĐỒNG
 ADMIN_EMAIL = "j1xray0@gmail.com" 
 
 if "guest_user" in st.session_state:
@@ -113,7 +114,7 @@ try:
                 supabase.table("users").update({"last_login": now.isoformat(), "streak_count": 1}).eq("username", username).execute()
                 user_info["streak_count"] = 1
 except Exception as e:
-    pass # Bỏ qua lỗi nếu có để app không sập
+    pass
 
 # ===== 6. QUẢN LÝ GÓI DỊCH VỤ =====
 is_premium = False
@@ -340,7 +341,7 @@ with tab_forum:
                 if post.get('image_url'): st.image(post['image_url'], width=400)
     except: pass
 
-# --- TAB HỒ SƠ (GIAO DIỆN ĐÃ GỌN GÀNG) ---
+# --- TAB HỒ SƠ ---
 with tab_profile:
     profile_data = supabase.table("users").select("*").eq("username", username).execute().data[0]
     
@@ -353,7 +354,7 @@ with tab_profile:
     if not st.session_state.edit_profile:
         # --- CHẾ ĐỘ XEM HỒ SƠ ---
         st.markdown("<br>", unsafe_allow_html=True)
-        col1, col2 = st.columns([1, 4])
+        col1, col2 = st.columns([1, 3])
         
         with col1:
             avt = profile_data.get("avatar_url") or user_avatar
@@ -366,12 +367,12 @@ with tab_profile:
             disp_name = profile_data.get("display_name") or username
             
             # Tên và Nút chỉnh sửa nằm ngang hàng
-            col_name, col_btn = st.columns([3, 1])
+            col_name, col_btn = st.columns([1, 1.5])
             with col_name:
                 st.title(disp_name)
-                st.caption(f"Tài khoản: @{username}")
             with col_btn:
-                st.markdown("<br>", unsafe_allow_html=True) # Đẩy nút xuống cho thẳng hàng với tên
+                st.write("") 
+                st.write("")
                 if st.button("✏️ Chỉnh sửa", type="primary"):
                     st.session_state.edit_profile = True
                     st.rerun()
