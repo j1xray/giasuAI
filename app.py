@@ -21,6 +21,8 @@ custom_css = """
 html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 header {visibility: hidden;}
 .stApp { background-color: #212121; }
+
+/* CSS cho khung đăng nhập */
 .login-container {
     background-color: #2f2f2f; padding: 40px; border-radius: 16px;
     width: 100%; max-width: 420px; margin: 80px auto; text-align: center;
@@ -31,6 +33,8 @@ header {visibility: hidden;}
 .divider { display: flex; align-items: center; text-align: center; color: #888; margin: 25px 0; font-size: 12px; font-weight: 600; }
 .divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid #555; }
 .divider::before { margin-right: 15px; } .divider::after { margin-left: 15px; }
+
+/* CSS nút bấm mặc định */
 div.stButton > button {
     width: 100%; background-color: #2f2f2f; color: white; border: 1px solid #555;
     border-radius: 8px; padding: 10px 16px; font-size: 15px; font-weight: 500; transition: all 0.2s ease;
@@ -38,7 +42,25 @@ div.stButton > button {
 div.stButton > button:hover { background-color: #3f3f3f; border-color: #777; color: white; }
 div.stButton > button[kind="primary"] { background-color: white; color: black; border: none; }
 div.stButton > button[kind="primary"]:hover { background-color: #e0e0e0; color: black; }
+
+/* CSS cho ô nhập liệu */
 div[data-testid="stTextInput"] input { background-color: #212121 !important; color: white !important; border: 1px solid #555 !important; border-radius: 8px !important; padding: 12px !important; }
+
+/* CSS ĐẶC BIỆT CHO NÚT CHỈNH SỬA Ở SIDEBAR */
+.st-key-btn_edit_sidebar button {
+    background-color: transparent !important;
+    color: #a0a0a0 !important; /* Màu xám nhạt hợp tông tối */
+    border: 1px solid #444 !important;
+    padding: 2px 10px !important;
+    font-size: 13px !important;
+    border-radius: 6px !important;
+    margin-top: 5px;
+}
+.st-key-btn_edit_sidebar button:hover {
+    background-color: #3f3f3f !important;
+    color: white !important;
+    border-color: #777 !important;
+}
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
@@ -76,8 +98,7 @@ if not st.user.is_logged_in and "guest_user" not in st.session_state:
     st.stop()
 
 # ===== 4. XÁC ĐỊNH USER & ADMIN =====
-# ⚠️ BẠN NHỚ THAY EMAIL ADMIN CỦA BẠN VÀO ĐÂY ĐỂ CÓ QUYỀN TẠO NHÓM CỘNG ĐỒNG
-ADMIN_EMAIL = "j1xray0@gmail.com" 
+ADMIN_EMAIL = "email_cua_ban@gmail.com" 
 
 if "guest_user" in st.session_state:
     username = st.session_state.guest_user
@@ -129,19 +150,27 @@ try:
         is_premium = now < expiry_date
 except: pass
 
-# ===== 7. SIDEBAR =====
+if "edit_profile" not in st.session_state: st.session_state.edit_profile = False
+
+# ===== 7. SIDEBAR (ĐÃ DỌN DẸP TÊN) =====
 with st.sidebar:
-    col_avt, col_info = st.columns([1, 3])
+    # Bố cục: Avatar bên trái, Nút chỉnh sửa bên phải
+    col_avt, col_btn = st.columns([1, 2])
     with col_avt:
         avt_url = user_info.get("avatar_url") or user_avatar
         if isinstance(avt_url, str) and avt_url.startswith("http"):
             st.image(avt_url, width=50)
         else:
             st.markdown("<h1 style='text-align: center;'>👤</h1>", unsafe_allow_html=True)
-    with col_info:
-        display_name = user_info.get("display_name") or username
-        st.subheader(display_name)
-        st.caption("Admin" if is_admin else "Học viên")
+            
+    with col_btn:
+        st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
+        # Nút chỉnh sửa nhỏ gọn, dùng key để CSS riêng
+        if st.button("✏️ Chỉnh sửa", key="btn_edit_sidebar"):
+            st.session_state.edit_profile = True
+            st.rerun()
+            
+    st.caption(f"Vai trò: {'Quản trị viên' if is_admin else 'Học viên'}")
     
     st.divider()
     st.subheader("🤖 Trợ lý AI")
@@ -341,15 +370,13 @@ with tab_forum:
                 if post.get('image_url'): st.image(post['image_url'], width=400)
     except: pass
 
-# --- TAB HỒ SƠ ---
+# --- TAB HỒ SƠ (CHỈ HIỂN THỊ) ---
 with tab_profile:
     profile_data = supabase.table("users").select("*").eq("username", username).execute().data[0]
     
     join_date_str = profile_data.get("created_at", str(now))[:10]
     join_date = datetime.strptime(join_date_str, "%Y-%m-%d")
     streak = profile_data.get("streak_count", 1)
-    
-    if "edit_profile" not in st.session_state: st.session_state.edit_profile = False
 
     if not st.session_state.edit_profile:
         # --- CHẾ ĐỘ XEM HỒ SƠ ---
@@ -365,17 +392,7 @@ with tab_profile:
                 
         with col2:
             disp_name = profile_data.get("display_name") or username
-            
-            # Tên và Nút chỉnh sửa nằm ngang hàng
-            col_name, col_btn = st.columns([1, 1.5])
-            with col_name:
-                st.title(disp_name)
-            with col_btn:
-                st.write("") 
-                st.write("")
-                if st.button("✏️ Chỉnh sửa", type="primary"):
-                    st.session_state.edit_profile = True
-                    st.rerun()
+            st.title(disp_name)
             
             st.markdown(f"🔥 **Streak:** `{streak} ngày liên tiếp` &nbsp;|&nbsp; 📅 **Tham gia:** `Tháng {join_date.month}/{join_date.year}`")
             
