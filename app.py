@@ -33,7 +33,7 @@ header {visibility: hidden;}
 .divider::before { margin-right: 15px; } .divider::after { margin-left: 15px; }
 div.stButton > button {
     width: 100%; background-color: #2f2f2f; color: white; border: 1px solid #555;
-    border-radius: 8px; padding: 12px 16px; font-size: 15px; font-weight: 500; transition: all 0.2s ease;
+    border-radius: 8px; padding: 10px 16px; font-size: 15px; font-weight: 500; transition: all 0.2s ease;
 }
 div.stButton > button:hover { background-color: #3f3f3f; border-color: #777; color: white; }
 div.stButton > button[kind="primary"] { background-color: white; color: black; border: none; }
@@ -76,7 +76,7 @@ if not st.user.is_logged_in and "guest_user" not in st.session_state:
     st.stop()
 
 # ===== 4. XÁC ĐỊNH USER & ADMIN =====
-# SỬA EMAIL ADMIN CỦA BẠN VÀO ĐÂY ĐỂ CÓ QUYỀN TẠO NHÓM CỘNG ĐỒNG
+# THAY EMAIL ADMIN CỦA BẠN VÀO ĐÂY ĐỂ CÓ QUYỀN TẠO NHÓM CỘNG ĐỒNG
 ADMIN_EMAIL = "j1xray0@gmail.com" 
 
 if "guest_user" in st.session_state:
@@ -108,17 +108,12 @@ try:
             days_diff = (now.date() - last_login.date()).days
             
             if days_diff == 1:
-                # Đăng nhập liên tiếp
                 new_streak = user_info.get("streak_count", 1) + 1
                 supabase.table("users").update({"last_login": now.isoformat(), "streak_count": new_streak}).eq("username", username).execute()
                 user_info["streak_count"] = new_streak
             elif days_diff > 1:
-                # Bị đứt streak
                 supabase.table("users").update({"last_login": now.isoformat(), "streak_count": 1}).eq("username", username).execute()
                 user_info["streak_count"] = 1
-            else:
-                # Đăng nhập cùng ngày
-                pass
 except Exception as e:
     st.toast(f"Lỗi DB User: {e}", icon="❌")
 
@@ -145,22 +140,15 @@ with st.sidebar:
         else:
             st.markdown("<h1 style='text-align: center;'>👤</h1>", unsafe_allow_html=True)
     with col_info:
-        st.subheader(username)
+        display_name = user_info.get("display_name") or username
+        st.subheader(display_name)
         st.caption("Admin" if is_admin else "Học viên")
     
-    # Hiển thị Streak và Ngày tham gia
-    join_year = user_info.get("created_at", str(now))[:4]
-    streak = user_info.get("streak_count", 1)
-    st.markdown(f"🔥 **Streak:** `{streak} ngày`")
-    st.markdown(f"📅 **Tham gia:** `Năm {join_year}`")
-    
     st.divider()
-    
     st.subheader("🤖 Trợ lý AI")
     provider = st.selectbox("Nền tảng", ["Google Gemini", "Groq (Llama 3.3)", "OpenRouter"])
     
     st.divider()
-    
     st.subheader("👥 Nhóm học tập")
     with st.expander("➕ Tạo nhóm mới"):
         group_name = st.text_input("Tên nhóm")
@@ -296,52 +284,43 @@ with tab_social:
                         st.rerun()
     except: pass
 
-# --- TAB DIỄN ĐÀN (CÓ TAG VÀ KIỂM DUYỆT 18+) ---
+# --- TAB DIỄN ĐÀN ---
 with tab_forum:
     st.subheader("Diễn Đàn Học Tập")
     
     with st.expander("➕ Đăng bài thảo luận"):
         title = st.text_input("Tiêu đề")
         content = st.text_area("Nội dung (Có thể tag @ten_ban_be)")
-        
-        # Upload ảnh
         uploaded_img = st.file_uploader("Đính kèm ảnh (Tùy chọn)", type=["jpg", "png", "jpeg"])
         
         if st.button("Đăng bài"):
-            if not title or not content:
-                st.warning("Vui lòng nhập đủ tiêu đề và nội dung!")
+            if not title or not content: st.warning("Vui lòng nhập đủ tiêu đề và nội dung!")
             else:
-                # 1. Kiểm duyệt Text 18+
                 bad_words = ["18+", "khiêu dâm", "sex", "nude", "gợi cảm quá mức"]
                 if any(word in content.lower() or word in title.lower() for word in bad_words):
                     st.error("🚫 Phát hiện từ khóa 18+. Bài viết bị từ chối!")
                 else:
                     image_url = None
-                    # 2. Kiểm duyệt Ảnh bằng AI
                     if uploaded_img:
                         with st.spinner("AI đang kiểm duyệt hình ảnh..."):
                             img = Image.open(uploaded_img)
-                            # Dùng Gemini Vision kiểm tra ảnh
                             check_res = get_ai_response("Is this image NSFW, sexually explicit, or 18+? Answer only YES or NO.", image=img, provider="Google Gemini")
                             
                             if "YES" in check_res.upper():
-                                st.error("🚫 Hình ảnh chứa nội dung 18+. Vui lòng chọn ảnh khác!")
-                                st.stop()
+                                st.error("🚫 Hình ảnh chứa nội dung 18+. Vui lòng chọn ảnh khác!"); st.stop()
                             else:
-                                # Upload ảnh lên Supabase Storage
                                 file_bytes = uploaded_img.read()
                                 file_name = f"forum_{username}_{int(time.time())}.png"
                                 try:
                                     supabase.storage.from_("public_images").upload(file=file_bytes, path=file_name)
                                     image_url = supabase.storage.from_("public_images").get_public_url(file_name)
                                 except Exception as e:
-                                    st.error(f"Lỗi upload ảnh: {e}")
+                                    st.error(f"Lỗi upload ảnh (Hãy kiểm tra lại Storage): {e}")
                                     
                     if image_url or not uploaded_img:
                         try:
                             supabase.table("forum_posts").insert({
-                                "username": username, "title": title, 
-                                "content": content, "image_url": image_url
+                                "username": username, "title": title, "content": content, "image_url": image_url
                             }).execute()
                             st.toast("✅ Đăng bài thành công!"); time.sleep(1); st.rerun()
                         except: st.toast("Lỗi đăng bài!", icon="❌")
@@ -355,63 +334,118 @@ with tab_forum:
                 st.markdown(f"### {post['title']}")
                 st.caption(f"Đăng bởi: **{post['username']}** | {post['created_at'][:10]}")
                 
-                # Xử lý tag @username
                 display_content = post['content']
                 tags = re.findall(r'@(\w+)', display_content)
-                for tag in tags:
-                    display_content = display_content.replace(f"@{tag}", f"**[@{tag}]**")
+                for tag in tags: display_content = display_content.replace(f"@{tag}", f"**[@{tag}]**")
                 
                 st.write(display_content)
-                
-                if post.get('image_url'):
-                    st.image(post['image_url'], width=400)
+                if post.get('image_url'): st.image(post['image_url'], width=400)
     except: pass
 
-# --- TAB HỒ SƠ (CẬP NHẬT THÔNG TIN) ---
+# --- TAB HỒ SƠ (GIAO DIỆN MỚI) ---
 with tab_profile:
-    st.subheader("👤 Hồ sơ của bạn")
-    st.write(f"**Tên đăng nhập:** {username}")
-    
     # Lấy dữ liệu mới nhất
     profile_data = supabase.table("users").select("*").eq("username", username).execute().data[0]
     
-    # 1. Đổi Avatar
-    with st.container(border=True):
-        st.write("### 📸 Đổi Ảnh Đại Diện")
-        current_avt = profile_data.get("avatar_url") or "Chưa có"
-        st.write(f"Ảnh hiện tại: {current_avt[:50]}..." if current_avt != "Chưa có" else "Chưa có ảnh.")
+    # Tính toán Streak và Ngày tham gia
+    join_date_str = profile_data.get("created_at", str(now))[:10]
+    join_date = datetime.strptime(join_date_str, "%Y-%m-%d")
+    streak = profile_data.get("streak_count", 1)
+    
+    # Biến trạng thái để bật/tắt Form chỉnh sửa
+    if "edit_profile" not in st.session_state: st.session_state.edit_profile = False
+
+    if not st.session_state.edit_profile:
+        # --- CHẾ ĐỘ XEM HỒ SƠ ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        col1, col2 = st.columns([1, 3])
         
-        avt_file = st.file_uploader("Tải ảnh mới lên", type=["jpg", "png", "jpeg"])
-        if st.button("Cập nhật Avatar"):
-            if avt_file:
-                file_bytes = avt_file.read()
-                file_name = f"avt_{username}_{int(time.time())}.png"
-                try:
-                    supabase.storage.from_("public_images").upload(file=file_bytes, path=file_name)
-                    new_url = supabase.storage.from_("public_images").get_public_url(file_name)
-                    supabase.table("users").update({"avatar_url": new_url}).eq("username", username).execute()
-                    st.toast("✅ Đã đổi Avatar!"); time.sleep(1); st.rerun()
-                except Exception as e:
-                    st.error(f"Lỗi: {e}")
-            else:
-                st.warning("Vui lòng chọn ảnh!")
-                
-    # 2. Bio (Năm sinh, Giới tính, Giới thiệu)
-    with st.container(border=True):
-        st.write("### 📝 Chỉnh sửa Bio")
-        col1, col2 = st.columns(2)
         with col1:
-            new_year = st.number_input("Năm sinh", min_value=1900, max_value=2026, value=profile_data.get("birth_year") or 2005)
+            # Avatar
+            avt = profile_data.get("avatar_url") or user_avatar
+            if isinstance(avt, str) and avt.startswith("http"):
+                st.image(avt, use_column_width=True)
+            else:
+                st.markdown("<h1 style='text-align: center; font-size: 80px;'>👤</h1>", unsafe_allow_html=True)
+                
         with col2:
-            new_gender = st.selectbox("Giới tính", ["Nam", "Nữ", "Khác"], index=["Nam", "Nữ", "Khác"].index(profile_data.get("gender") or "Nam"))
+            # Thông tin cơ bản
+            disp_name = profile_data.get("display_name") or username
+            st.title(disp_name)
+            st.caption(f"Tài khoản: @{username}")
+            
+            # Streak & Ngày tham gia
+            st.markdown(f"🔥 **Streak:** `{streak} ngày liên tiếp`")
+            st.markdown(f"📅 **Tham gia từ:** `Tháng {join_date.month}/{join_date.year}`")
+            
+            # Bio
+            st.markdown("---")
+            gender = profile_data.get("gender") or "Chưa cập nhật"
+            dob_str = profile_data.get("birth_date")
+            dob = datetime.strptime(dob_str, "%Y-%m-%d").strftime("%d/%m/%Y") if dob_str else "Chưa cập nhật"
+            
+            st.write(f"🎂 **Ngày sinh:** {dob}")
+            st.write(f"🚻 **Giới tính:** {gender}")
+            st.write(f"📝 **Giới thiệu:** {profile_data.get('bio') or 'Chưa có thông tin giới thiệu.'}")
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("✏️ Chỉnh sửa hồ sơ", type="primary"):
+            st.session_state.edit_profile = True
+            st.rerun()
+            
+    else:
+        # --- CHẾ ĐỘ CHỈNH SỬA ---
+        st.subheader("✏️ Chỉnh sửa Hồ sơ")
+        
+        # 1. Đổi Avatar
+        st.write("**1. Ảnh đại diện**")
+        avt_file = st.file_uploader("Tải ảnh mới lên", type=["jpg", "png", "jpeg"])
+        
+        # 2. Thông tin cá nhân
+        st.write("**2. Thông tin cá nhân**")
+        new_name = st.text_input("Tên hiển thị", value=profile_data.get("display_name") or username)
+        
+        col_dob, col_gender = st.columns(2)
+        with col_dob:
+            # Chuyển date string sang datetime cho st.date_input
+            default_dob = datetime.strptime(profile_data.get("birth_date"), "%Y-%m-%d").date() if profile_data.get("birth_date") else datetime(2005, 1, 1).date()
+            new_dob = st.date_input("Ngày sinh", value=default_dob, min_value=datetime(1900, 1, 1), max_value=datetime(2026, 12, 31))
+        with col_gender:
+            gender_options = ["Nam", "Nữ", "Khác"]
+            curr_gender = profile_data.get("gender") or "Nam"
+            new_gender = st.selectbox("Giới tính", gender_options, index=gender_options.index(curr_gender) if curr_gender in gender_options else 0)
             
         new_bio = st.text_area("Giới thiệu bản thân", value=profile_data.get("bio") or "")
         
-        if st.button("Lưu thay đổi"):
-            try:
-                supabase.table("users").update({
-                    "birth_year": new_year, "gender": new_gender, "bio": new_bio
-                }).eq("username", username).execute()
-                st.toast("✅ Đã lưu thông tin!"); time.sleep(1); st.rerun()
-            except Exception as e:
-                st.error(f"Lỗi lưu: {e}")
+        # Nút Lưu
+        col_save, col_cancel = st.columns([1, 1])
+        with col_save:
+            if st.button("💾 Lưu thay đổi", type="primary", use_container_width=True):
+                with st.spinner("Đang lưu..."):
+                    try:
+                        update_data = {
+                            "display_name": new_name,
+                            "birth_date": new_dob.strftime("%Y-%m-%d"),
+                            "gender": new_gender,
+                            "bio": new_bio
+                        }
+                        
+                        # Xử lý upload Avatar
+                        if avt_file:
+                            file_bytes = avt_file.read()
+                            file_name = f"avt_{username}_{int(time.time())}.png"
+                            supabase.storage.from_("public_images").upload(file=file_bytes, path=file_name)
+                            new_avt_url = supabase.storage.from_("public_images").get_public_url(file_name)
+                            update_data["avatar_url"] = new_avt_url
+                            
+                        supabase.table("users").update(update_data).eq("username", username).execute()
+                        st.toast("✅ Đã lưu hồ sơ thành công!")
+                        st.session_state.edit_profile = False
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Lỗi khi lưu: {e}")
+        with col_cancel:
+            if st.button("❌ Hủy", use_container_width=True):
+                st.session_state.edit_profile = False
+                st.rerun()
