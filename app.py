@@ -59,7 +59,7 @@ try:
     supabase = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 except Exception as e:
-    st.error(f"❌ Lỗi cấu hình: {e}")
+    st.error(f"❌ Lỗi cấu hình Secrets: {e}")
     st.stop()
 
 # ===== 3. FORM ĐĂNG NHẬP (GOOGLE & GUEST) =====
@@ -74,15 +74,16 @@ if not st.user.is_logged_in and "guest_user" not in st.session_state:
     
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
+        # Nút Google - Đã sửa để hiển thị LỖI THẬT
         if st.button("🌐 Continue with Google", use_container_width=True):
             try:
                 st.login("google")
-            except Exception:
-                st.warning("⚠️ Đăng nhập Google đang bảo trì. Vui lòng dùng tài khoản Khách bên dưới.")
+            except Exception as e:
+                st.error(f"Lỗi Google Auth: {e}") # Hiển thị lỗi thật ra màn hình
         
         st.markdown('<div class="divider">OR</div>', unsafe_allow_html=True)
         
-        guest_name = st.text_input("Tên của bạn", placeholder="Nhập tên của bạn (VD: nghia123)", label_visibility="collapsed")
+        guest_name = st.text_input("Tên của bạn", placeholder="Nhập tên (VD: nghia123)", label_visibility="collapsed")
         
         if st.button("Continue as Guest", use_container_width=True, type="primary"):
             if guest_name.strip():
@@ -99,9 +100,11 @@ if "guest_user" in st.session_state:
     user_avatar = "👤"
 else:
     username = st.user.email.split('@')[0]
-    is_admin = (st.user.email == "email_admin_cua_ban@gmail.com") # Sửa email admin thật
+    # THAY EMAIL ADMIN CỦA BẠN VÀO ĐÂY ĐỂ CẤP QUYỀN
+    is_admin = (st.user.email == "admin@gmail.com") 
     user_avatar = st.user.picture
 
+# Lưu user vào DB nếu chưa có (tránh lỗi khóa ngoại)
 try:
     user_check = supabase.table("users").select("*").eq("username", username).execute()
     if not user_check.data:
@@ -136,19 +139,19 @@ with st.sidebar:
     
     st.divider()
     
-    # === CHỌN MODEL AI ===
+    # CHỌN MODEL AI
     st.subheader("🤖 Chọn Trợ lý AI")
-    provider = st.selectbox("Nền tảng", ["Google Gemini (Khuyên dùng)", "Groq (Llama 3.3)", "OpenRouter (Mixtral)"])
+    provider = st.selectbox("Nền tảng", ["Google Gemini", "Groq (Llama 3.3)", "OpenRouter"])
     
     st.divider()
     
-    # === TẠO NHÓM ===
+    # TẠO NHÓM
     st.subheader("👥 Nhóm học tập")
     with st.expander("➕ Tạo nhóm mới"):
         group_name = st.text_input("Tên nhóm")
         if is_admin:
-            group_type = st.selectbox("Loại nhóm", ["Cộng đồng (Community)", "Học tập (Study)"])
-            type_val = "community" if "Cộng đồng" in group_type else "study"
+            group_type = st.selectbox("Loại nhóm", ["Cộng đồng", "Học tập"])
+            type_val = "community" if group_type == "Cộng đồng" else "study"
         else:
             st.info("Chỉ Admin mới có thể tạo nhóm cộng đồng.")
             type_val = "study"
@@ -157,7 +160,7 @@ with st.sidebar:
             try:
                 supabase.table("groups").insert({"group_name": group_name, "group_type": type_val, "created_by": username}).execute()
                 st.toast("✅ Đã tạo nhóm thành công!")
-            except Exception as e: 
+            except Exception: 
                 st.toast("❌ Lỗi: Tên nhóm có thể đã tồn tại", icon="❌")
             
     if st.button("Đăng xuất", use_container_width=True):
@@ -168,9 +171,9 @@ with st.sidebar:
         st.rerun()
 
 # ===== 7. HÀM GỌI AI ĐA NỀN TẢNG =====
-def get_ai_response(prompt, image=None, provider="Google Gemini (Khuyên dùng)"):
+def get_ai_response(prompt, image=None, provider="Google Gemini"):
     try:
-        if provider == "Google Gemini (Khuyên dùng)":
+        if provider == "Google Gemini":
             model = genai.GenerativeModel('gemini-3.6-flash')
             content = [prompt]
             if image: content.append(image)
@@ -182,7 +185,7 @@ def get_ai_response(prompt, image=None, provider="Google Gemini (Khuyên dùng)"
             res = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": prompt}])
             return res.choices[0].message.content
             
-        elif provider == "OpenRouter (Mixtral)":
+        elif provider == "OpenRouter":
             if image: return "⚠️ OpenRouter không hỗ trợ đọc ảnh. Vui lòng chọn Gemini!"
             client = OpenAI(api_key=st.secrets["OPENROUTER_API_KEY"], base_url="https://openrouter.ai/api/v1")
             res = client.chat.completions.create(model="openai/gpt-oss-120b:free", messages=[{"role": "user", "content": prompt}])
@@ -206,10 +209,8 @@ with tab_chat:
         with st.chat_message("user"): st.markdown(prompt)
         with st.chat_message("assistant"):
             with st.spinner("Đang suy nghĩ..."):
-                # Lấy lịch sử 5 tin nhắn gần nhất
                 history_text = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.messages[-5:]])
                 full_prompt = f"Bạn là gia sư thân thiện. Lịch sử:\n{history_text}\n\nTrả lời câu hỏi mới nhất."
-                
                 res_text = get_ai_response(full_prompt, provider=provider)
                 st.markdown(res_text)
                 st.session_state.messages.append({"role": "assistant", "content": res_text})
@@ -305,7 +306,7 @@ with tab_social:
                     if st.button("Chấp nhận", key=f"acc_{req['id']}"):
                         supabase.table("friendships").update({"status": "accepted"}).eq("id", req['id']).execute()
                         st.rerun()
-    except Exception as e:
+    except Exception:
         st.toast("Lỗi tải danh sách bạn bè.", icon="❌")
 
 # --- TAB 5: DIỄN ĐÀN ---
