@@ -76,7 +76,6 @@ if not st.user.is_logged_in and "guest_user" not in st.session_state:
     st.stop()
 
 # ===== 4. XÁC ĐỊNH USER & ADMIN =====
-# THAY EMAIL ADMIN CỦA BẠN VÀO ĐÂY ĐỂ CÓ QUYỀN TẠO NHÓM CỘNG ĐỒNG
 ADMIN_EMAIL = "j1xray0@gmail.com" 
 
 if "guest_user" in st.session_state:
@@ -93,7 +92,6 @@ now = datetime.now(timezone.utc)
 try:
     user_check = supabase.table("users").select("*").eq("username", username).execute()
     if not user_check.data:
-        # Tạo mới
         supabase.table("users").insert({
             "username": username, "password": "oauth_user", 
             "last_login": now.isoformat(), "streak_count": 1, "created_at": now.isoformat()
@@ -115,7 +113,7 @@ try:
                 supabase.table("users").update({"last_login": now.isoformat(), "streak_count": 1}).eq("username", username).execute()
                 user_info["streak_count"] = 1
 except Exception as e:
-    st.toast(f"Lỗi DB User: {e}", icon="❌")
+    pass # Bỏ qua lỗi nếu có để app không sập
 
 # ===== 6. QUẢN LÝ GÓI DỊCH VỤ =====
 is_premium = False
@@ -315,7 +313,7 @@ with tab_forum:
                                     supabase.storage.from_("public_images").upload(file=file_bytes, path=file_name)
                                     image_url = supabase.storage.from_("public_images").get_public_url(file_name)
                                 except Exception as e:
-                                    st.error(f"Lỗi upload ảnh (Hãy kiểm tra lại Storage): {e}")
+                                    st.error(f"Lỗi upload ảnh: {e}")
                                     
                     if image_url or not uploaded_img:
                         try:
@@ -342,26 +340,22 @@ with tab_forum:
                 if post.get('image_url'): st.image(post['image_url'], width=400)
     except: pass
 
-# --- TAB HỒ SƠ (GIAO DIỆN MỚI) ---
+# --- TAB HỒ SƠ (GIAO DIỆN ĐÃ GỌN GÀNG) ---
 with tab_profile:
-    # Lấy dữ liệu mới nhất
     profile_data = supabase.table("users").select("*").eq("username", username).execute().data[0]
     
-    # Tính toán Streak và Ngày tham gia
     join_date_str = profile_data.get("created_at", str(now))[:10]
     join_date = datetime.strptime(join_date_str, "%Y-%m-%d")
     streak = profile_data.get("streak_count", 1)
     
-    # Biến trạng thái để bật/tắt Form chỉnh sửa
     if "edit_profile" not in st.session_state: st.session_state.edit_profile = False
 
     if not st.session_state.edit_profile:
         # --- CHẾ ĐỘ XEM HỒ SƠ ---
         st.markdown("<br>", unsafe_allow_html=True)
-        col1, col2 = st.columns([1, 3])
+        col1, col2 = st.columns([1, 4])
         
         with col1:
-            # Avatar
             avt = profile_data.get("avatar_url") or user_avatar
             if isinstance(avt, str) and avt.startswith("http"):
                 st.image(avt, use_column_width=True)
@@ -369,16 +363,21 @@ with tab_profile:
                 st.markdown("<h1 style='text-align: center; font-size: 80px;'>👤</h1>", unsafe_allow_html=True)
                 
         with col2:
-            # Thông tin cơ bản
             disp_name = profile_data.get("display_name") or username
-            st.title(disp_name)
-            st.caption(f"Tài khoản: @{username}")
             
-            # Streak & Ngày tham gia
-            st.markdown(f"🔥 **Streak:** `{streak} ngày liên tiếp`")
-            st.markdown(f"📅 **Tham gia từ:** `Tháng {join_date.month}/{join_date.year}`")
+            # Tên và Nút chỉnh sửa nằm ngang hàng
+            col_name, col_btn = st.columns([3, 1])
+            with col_name:
+                st.title(disp_name)
+                st.caption(f"Tài khoản: @{username}")
+            with col_btn:
+                st.markdown("<br>", unsafe_allow_html=True) # Đẩy nút xuống cho thẳng hàng với tên
+                if st.button("✏️ Chỉnh sửa", type="primary"):
+                    st.session_state.edit_profile = True
+                    st.rerun()
             
-            # Bio
+            st.markdown(f"🔥 **Streak:** `{streak} ngày liên tiếp` &nbsp;|&nbsp; 📅 **Tham gia:** `Tháng {join_date.month}/{join_date.year}`")
+            
             st.markdown("---")
             gender = profile_data.get("gender") or "Chưa cập nhật"
             dob_str = profile_data.get("birth_date")
@@ -388,26 +387,18 @@ with tab_profile:
             st.write(f"🚻 **Giới tính:** {gender}")
             st.write(f"📝 **Giới thiệu:** {profile_data.get('bio') or 'Chưa có thông tin giới thiệu.'}")
             
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("✏️ Chỉnh sửa hồ sơ", type="primary"):
-            st.session_state.edit_profile = True
-            st.rerun()
-            
     else:
         # --- CHẾ ĐỘ CHỈNH SỬA ---
         st.subheader("✏️ Chỉnh sửa Hồ sơ")
         
-        # 1. Đổi Avatar
         st.write("**1. Ảnh đại diện**")
         avt_file = st.file_uploader("Tải ảnh mới lên", type=["jpg", "png", "jpeg"])
         
-        # 2. Thông tin cá nhân
         st.write("**2. Thông tin cá nhân**")
         new_name = st.text_input("Tên hiển thị", value=profile_data.get("display_name") or username)
         
         col_dob, col_gender = st.columns(2)
         with col_dob:
-            # Chuyển date string sang datetime cho st.date_input
             default_dob = datetime.strptime(profile_data.get("birth_date"), "%Y-%m-%d").date() if profile_data.get("birth_date") else datetime(2005, 1, 1).date()
             new_dob = st.date_input("Ngày sinh", value=default_dob, min_value=datetime(1900, 1, 1), max_value=datetime(2026, 12, 31))
         with col_gender:
@@ -417,7 +408,6 @@ with tab_profile:
             
         new_bio = st.text_area("Giới thiệu bản thân", value=profile_data.get("bio") or "")
         
-        # Nút Lưu
         col_save, col_cancel = st.columns([1, 1])
         with col_save:
             if st.button("💾 Lưu thay đổi", type="primary", use_container_width=True):
@@ -430,7 +420,6 @@ with tab_profile:
                             "bio": new_bio
                         }
                         
-                        # Xử lý upload Avatar
                         if avt_file:
                             file_bytes = avt_file.read()
                             file_name = f"avt_{username}_{int(time.time())}.png"
