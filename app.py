@@ -1,3 +1,4 @@
+
 import streamlit as st
 import os
 import time
@@ -46,15 +47,16 @@ div.stButton > button[kind="primary"]:hover { background-color: #e0e0e0; color: 
 /* CSS cho ô nhập liệu */
 div[data-testid="stTextInput"] input { background-color: #212121 !important; color: white !important; border: 1px solid #555 !important; border-radius: 8px !important; padding: 12px !important; }
 
-/* CSS ĐẶC BIỆT CHO NÚT CHỈNH SỬA Ở SIDEBAR */
+/* CSS ĐẶC BIỆT CHO NÚT SỬA Ở SIDEBAR (NHỎ GỌN) */
 .st-key-btn_edit_sidebar button {
     background-color: transparent !important;
-    color: #a0a0a0 !important; /* Màu xám nhạt hợp tông tối */
+    color: #a0a0a0 !important;
     border: 1px solid #444 !important;
-    padding: 2px 10px !important;
-    font-size: 13px !important;
-    border-radius: 6px !important;
-    margin-top: 5px;
+    padding: 2px 10px !important; /* Thu nhỏ padding */
+    font-size: 12px !important; /* Chữ nhỏ */
+    border-radius: 20px !important; /* Bo tròn dạng viên thuốc */
+    width: fit-content !important; /* Chỉ rộng bằng chữ, không bị kéo giãn */
+    margin-top: 8px !important; /* Căn chỉnh cho ngang tầm avatar */
 }
 .st-key-btn_edit_sidebar button:hover {
     background-color: #3f3f3f !important;
@@ -98,7 +100,7 @@ if not st.user.is_logged_in and "guest_user" not in st.session_state:
     st.stop()
 
 # ===== 4. XÁC ĐỊNH USER & ADMIN =====
-ADMIN_EMAIL = "email_cua_ban@gmail.com" 
+ADMIN_EMAIL = "j1xray0@gmail.com" 
 
 if "guest_user" in st.session_state:
     username = st.session_state.guest_user
@@ -152,10 +154,9 @@ except: pass
 
 if "edit_profile" not in st.session_state: st.session_state.edit_profile = False
 
-# ===== 7. SIDEBAR (ĐÃ DỌN DẸP TÊN) =====
+# ===== 7. SIDEBAR (NÚT SỬA NHỎ GỌN) =====
 with st.sidebar:
-    # Bố cục: Avatar bên trái, Nút chỉnh sửa bên phải
-    col_avt, col_btn = st.columns([1, 2])
+    col_avt, col_btn = st.columns([1, 2.5])
     with col_avt:
         avt_url = user_info.get("avatar_url") or user_avatar
         if isinstance(avt_url, str) and avt_url.startswith("http"):
@@ -164,9 +165,8 @@ with st.sidebar:
             st.markdown("<h1 style='text-align: center;'>👤</h1>", unsafe_allow_html=True)
             
     with col_btn:
-        st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
-        # Nút chỉnh sửa nhỏ gọn, dùng key để CSS riêng
-        if st.button("✏️ Chỉnh sửa", key="btn_edit_sidebar"):
+        # Nút chỉnh sửa nhỏ gọn
+        if st.button("✏️ Sửa", key="btn_edit_sidebar"):
             st.session_state.edit_profile = True
             st.rerun()
             
@@ -370,7 +370,7 @@ with tab_forum:
                 if post.get('image_url'): st.image(post['image_url'], width=400)
     except: pass
 
-# --- TAB HỒ SƠ (CHỈ HIỂN THỊ) ---
+# --- TAB HỒ SƠ ---
 with tab_profile:
     profile_data = supabase.table("users").select("*").eq("username", username).execute().data[0]
     
