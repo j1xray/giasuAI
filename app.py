@@ -17,43 +17,83 @@ from langchain_core.tools import Tool
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
 
-# ===== 1. CẤU HÌNH TRANG & CSS CHUYÊN NGHIỆP =====
-st.set_page_config(page_title="Gia Sư AI 2.0", page_icon="", layout="wide")
+# ===== 1. CẤU HÌNH UI (SOFT DARK MODE & FACEBOOK SIDEBAR) =====
+st.set_page_config(page_title="Gia Sư AI 2.0", page_icon="🧠", layout="wide")
 
 custom_css = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
-.stApp { background-color: #0E1117; color: #FAFAFA; }
+.stApp { background-color: #1E1E2E; color: #CDD6F4; }
 header {visibility: hidden;}
 
-/* Sidebar styling */
-[data-testid="stSidebar"] { background-color: #161A25; border-right: 1px solid #2D3748; }
+/* Sidebar tổng thể */
+[data-testid="stSidebar"] { 
+    background-color: #181825; 
+    border-right: 1px solid #313244; 
+    padding-top: 20px;
+}
+
+/* BIẾN NÚT BẤM THÀNH MENU FACEBOOK */
+[data-testid="stSidebar"] div.stButton > button {
+    background-color: transparent !important;
+    border: none !important;
+    text-align: left !important;
+    justify-content: flex-start !important;
+    padding: 12px 15px !important;
+    font-size: 16px !important;
+    font-weight: 500 !important;
+    color: #CDD6F4 !important;
+    border-radius: 8px !important;
+    transition: background-color 0.2s ease;
+    margin-bottom: 2px;
+}
+[data-testid="stSidebar"] div.stButton > button:hover {
+    background-color: #313244 !important;
+}
+[data-testid="stSidebar"] div.stButton > button:focus:not(:active) {
+    color: #CBA6F7 !important;
+    background-color: #313244 !important;
+}
 
 /* Khung Đăng Nhập */
 .login-container {
-    background-color: #1A202C; padding: 40px; border-radius: 12px;
-    width: 100%; max-width: 400px; margin: 100px auto; text-align: center;
-    border: 1px solid #2D3748; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    background-color: #313244; padding: 40px; border-radius: 16px;
+    width: 100%; max-width: 420px; margin: 80px auto; text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid #45475A;
 }
-.login-title { color: #FAFAFA; font-size: 24px; font-weight: 600; margin-bottom: 10px; }
-.login-subtitle { color: #A0AEC0; font-size: 14px; margin-bottom: 30px; }
+.login-title { color: #CBA6F7; font-size: 28px; font-weight: 600; margin-bottom: 10px; }
+.login-subtitle { color: #A6ADC8; font-size: 14px; margin-bottom: 30px; }
 
-/* Nút bấm */
-div.stButton > button {
-    width: 100%; background-color: #2D3748; color: #FAFAFA; border: 1px solid #4A5568;
-    border-radius: 8px; padding: 10px 16px; font-size: 14px; font-weight: 500; transition: all 0.2s;
-}
-div.stButton > button:hover { background-color: #4A5568; border-color: #718096; }
-div.stButton > button[kind="primary"] { background-color: #3182CE; color: white; border: none; }
-div.stButton > button[kind="primary"]:hover { background-color: #2B6CB0; }
+/* Nút bấm chung (Primary) */
+div.stButton > button[kind="primary"] { background-color: #CBA6F7; color: #11111B; border: none; font-weight: 600; }
+div.stButton > button[kind="primary"]:hover { background-color: #F5C2E7; }
 
 /* Ô nhập liệu */
 div[data-testid="stTextInput"] input, div[data-testid="stTextArea"] textarea { 
-    background-color: #1A202C !important; color: #FAFAFA !important; 
-    border: 1px solid #4A5568 !important; border-radius: 6px !important; 
+    background-color: #181825 !important; color: #CDD6F4 !important; 
+    border: 1px solid #45475A !important; border-radius: 8px !important; 
 }
-.st-key-btn_edit_sidebar button { width: fit-content !important; padding: 2px 12px !important; font-size: 12px !important; border-radius: 4px !important; }
+
+/* Nút Sửa nhỏ gọn ở Profile Sidebar */
+.st-key-btn_edit_sidebar button { 
+    width: fit-content !important; padding: 2px 12px !important; font-size: 12px !important; 
+    border-radius: 20px !important; margin-top: 5px !important;
+}
+
+/* CSS cho Hashtag */
+.hashtag-pill {
+    display: inline-block;
+    background-color: #313244;
+    color: #89B4FA;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-right: 6px;
+    margin-top: 8px;
+    border: 1px solid #45475A;
+}
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
@@ -141,27 +181,38 @@ try:
                 user_info["streak_count"] = 1
 except: pass
 
-# ===== 6. SIDEBAR ĐIỀU HƯỚNG CHÍNH =====
+# ===== 6. SIDEBAR (GIAO DIỆN FACEBOOK) =====
 with st.sidebar:
-    col_avt, col_btn = st.columns([1, 2])
+    # Avatar & Tên (Giống Facebook Header)
+    col_avt, col_info = st.columns([1, 2.5])
     with col_avt:
         avt_url = user_info.get("avatar_url") or (st.user.picture if st.user.is_logged_in else "")
-        if isinstance(avt_url, str) and avt_url.startswith("http"): st.image(avt_url, width=45)
-        else: st.write("Chưa có ảnh")
-    with col_btn:
-        if st.button("Sửa", key="btn_edit_sidebar"):
-            st.session_state.page = "Hồ sơ"
-            st.session_state.edit_profile = True
-            st.rerun()
-            
-    st.caption(f"Vai trò: {'Admin' if is_admin else 'Học viên'}")
+        if isinstance(avt_url, str) and avt_url.startswith("http"): st.image(avt_url, width=40)
+        else: st.write("👤")
+    with col_info:
+        st.write(f"**{user_info.get('display_name') or username}**")
+    
+    st.write("") # Khoảng cách
     st.divider()
     
-    # Menu điều hướng
-    menu = ["Trợ lý AI", "Giải bài qua ảnh", "Phòng học nhóm", "Diễn đàn", "Hồ sơ"]
+    # Menu dạng Facebook (Dùng button thay vì radio)
     if "page" not in st.session_state: st.session_state.page = "Trợ lý AI"
-    page = st.radio("Chức năng", menu, index=menu.index(st.session_state.page))
-    st.session_state.page = page
+    
+    if st.button("Trang chủ (Trợ lý AI)", use_container_width=True):
+        st.session_state.page = "Trợ lý AI"
+        st.rerun()
+    if st.button("Giải bài qua ảnh", use_container_width=True):
+        st.session_state.page = "Giải bài qua ảnh"
+        st.rerun()
+    if st.button("Phòng học nhóm", use_container_width=True):
+        st.session_state.page = "Phòng học nhóm"
+        st.rerun()
+    if st.button("Diễn đàn học tập", use_container_width=True):
+        st.session_state.page = "Diễn đàn"
+        st.rerun()
+    if st.button("Hồ sơ cá nhân", use_container_width=True):
+        st.session_state.page = "Hồ sơ"
+        st.rerun()
     
     st.divider()
     if st.button("Đăng xuất", use_container_width=True):
@@ -171,8 +222,8 @@ with st.sidebar:
 
 # ===== 7. HIỂN THỊ CÁC TRANG =====
 
-# --- TRANG 1: TRỢ LÝ AI (GỘP TOÁN & CODE) ---
-if page == "Trợ lý AI":
+# --- TRANG 1: TRỢ LÝ AI ---
+if st.session_state.page == "Trợ lý AI":
     st.header("Trợ lý AI")
     
     ai_type = st.selectbox("Chọn chế độ Trợ lý", ["Gia sư Toán", "Kỹ sư Code"])
@@ -195,17 +246,26 @@ if page == "Trợ lý AI":
                 st.markdown(ans)
                 st.session_state[f"msgs_{tab_key}"].append({"role": "assistant", "content": ans})
 
-# --- TRANG 2: GIẢI BÀI QUA ẢNH (TỰ ĐỘNG) ---
-elif page == "Giải bài qua ảnh":
+# --- TRANG 2: GIẢI BÀI QUA ẢNH (BẢO MẬT CAMERA) ---
+elif st.session_state.page == "Giải bài qua ảnh":
     st.header("Giải bài tập qua ảnh")
-    img_source = st.radio("Nguồn ảnh:", ["Chụp ảnh", "Tải ảnh lên"], horizontal=True)
-    image_data = st.camera_input("Chụp bài tập") if img_source == "Chụp ảnh" else st.file_uploader("Tải ảnh", type=["jpg", "png"])
+    st.write("Vui lòng chọn nguồn ảnh. Hệ thống không tự động bật camera để bảo vệ quyền riêng tư.")
     
+    # Mặc định index=0 (Tải ảnh từ máy) -> KHÔNG bật cam
+    img_source = st.radio("Chọn cách tải ảnh:", ["Tải ảnh từ máy", "Chụp ảnh bằng Camera"], horizontal=True, index=0)
+    
+    image_data = None
+    if img_source == "Tải ảnh từ máy":
+        image_data = st.file_uploader("Tải ảnh bài tập", type=["jpg", "png", "jpeg"])
+    else:
+        # Chỉ khi chọn "Chụp ảnh" thì cam mới bật
+        image_data = st.camera_input("Chụp ảnh bài tập")
+
     if image_data:
         img = Image.open(image_data)
         st.image(img, width=250, caption="Ảnh đã tải lên")
         
-        # Tự động xử lý ngay khi có ảnh, không cần bấm nút
+        # Tự động xử lý ngay khi có ảnh
         with st.spinner("Đang phân tích hình ảnh..."):
             model = genai.GenerativeModel('gemini-1.5-flash')
             res = model.generate_content(["Hãy giải chi tiết bài tập trong ảnh.", img])
@@ -213,62 +273,90 @@ elif page == "Giải bài qua ảnh":
             st.markdown(res.text)
 
 # --- TRANG 3: PHÒNG HỌC NHÓM ---
-elif page == "Phòng học nhóm":
+elif st.session_state.page == "Phòng học nhóm":
     st.header("Phòng học nhóm")
     
-    tab_join, tab_create = st.tabs(["Tham gia phòng", "Tạo phòng mới"])
-    
-    with tab_create:
-        with st.form("create_room_form"):
-            st.subheader("Tạo phòng học")
-            new_room_name = st.text_input("Tên phòng (VD: onthi_toan12)")
-            room_privacy = st.radio("Chế độ phòng:", ["Công khai (Mọi người đều thấy)", "Riêng tư (Chỉ ai biết tên mới vào được)"])
-            is_public = (room_privacy == "Công khai (Mọi người đều thấy)")
+    if "active_room" in st.session_state and st.session_state.active_room:
+        st.subheader(f"Đang trong phòng: {st.session_state.active_room}")
+        if st.button("Rời phòng", type="primary"):
+            st.session_state.active_room = None
+            st.rerun()
             
-            submit_room = st.form_submit_button("Tạo phòng", type="primary")
-            if submit_room and new_room_name.strip():
-                try:
-                    supabase.table("study_rooms").insert({"room_name": new_room_name, "is_public": is_public, "created_by": username}).execute()
-                    st.success("Tạo phòng thành công! Hãy chuyển sang tab Tham gia.")
-                except Exception as e:
-                    st.error(f"Lỗi: Tên phòng có thể đã tồn tại.")
-                    
-    with tab_join:
-        st.subheader("Các phòng công khai")
-        try:
-            rooms = supabase.table("study_rooms").select("*").eq("is_public", True).execute()
-            if not rooms.data:
-                st.info("Chưa có phòng công khai nào.")
-            else:
-                selected_room = st.selectbox("Chọn phòng để tham gia:", [r["room_name"] for r in rooms.data])
-                if selected_room and st.button("Vào phòng"):
-                    components.html(f"""
-                    <div id="jitsi-container" style="width: 100%; height: 500px; margin-top: 20px;"></div>
-                    <script src="https://meet.jit.si/external_api.js"></script>
-                    <script>
-                        new JitsiMeetExternalAPI("meet.jit.si", {{
-                            roomName: "{selected_room}", parentNode: document.querySelector('#jitsi-container'),
-                            width: "100%", height: 500, userInfo: {{ displayName: "{username}" }}
-                        }});
-                    </script>
-                    """, height=520)
-        except: pass
+        components.html(f"""
+        <div id="jitsi-container" style="width: 100%; height: 500px; margin-top: 20px;"></div>
+        <script src="https://meet.jit.si/external_api.js"></script>
+        <script>
+            new JitsiMeetExternalAPI("meet.jit.si", {{
+                roomName: "{st.session_state.active_room}", parentNode: document.querySelector('#jitsi-container'),
+                width: "100%", height: 500, userInfo: {{ displayName: "{username}" }}
+            }});
+        </script>
+        """, height=520)
+    else:
+        col_create, col_list = st.columns([1, 2])
+        
+        with col_create:
+            st.subheader("Tạo phòng mới")
+            with st.form("create_room_form"):
+                new_room_name = st.text_input("Tên phòng (VD: onthi_toan12)")
+                room_privacy = st.radio("Chế độ phòng:", ["Công khai", "Riêng tư"])
+                is_public = (room_privacy == "Công khai")
+                
+                submit_room = st.form_submit_button("Tạo phòng", type="primary")
+                if submit_room and new_room_name.strip():
+                    try:
+                        supabase.table("study_rooms").insert({"room_name": new_room_name, "is_public": is_public, "created_by": username}).execute()
+                        st.success("Tạo phòng thành công!")
+                    except Exception:
+                        st.error("Lỗi: Tên phòng có thể đã tồn tại.")
+                        
+        with col_list:
+            st.subheader("Danh sách phòng công khai")
+            try:
+                rooms = supabase.table("study_rooms").select("*").eq("is_public", True).execute()
+                if not rooms.data:
+                    st.info("Chưa có phòng công khai nào.")
+                else:
+                    for room in rooms.data:
+                        with st.container(border=True):
+                            col_info, col_btn = st.columns([3, 1])
+                            with col_info:
+                                st.write(f"**{room['room_name']}**")
+                                st.caption(f"Tạo bởi: {room['created_by']}")
+                            with col_btn:
+                                if st.button("Tham gia", key=f"join_{room['id']}"):
+                                    st.session_state.active_room = room['room_name']
+                                    st.rerun()
+            except: pass
 
-# --- TRANG 4: DIỄN ĐÀN (CÓ HASHTAG) ---
-elif page == "Diễn đàn":
+# --- TRANG 4: DIỄN ĐÀN (CÓ ĐĂNG ẢNH) ---
+elif st.session_state.page == "Diễn đàn":
     st.header("Diễn đàn học tập")
     
     with st.expander("Đăng bài viết mới"):
         title = st.text_input("Tiêu đề")
         content = st.text_area("Nội dung bài viết")
-        tags_input = st.text_input("Hashtag (cách nhau bằng dấu phẩy, VD: toan12, onthi, meovat)")
+        tags_input = st.text_input("Hashtag (cách nhau bằng dấu phẩy, VD: toan12, onthi)")
+        
+        # Nút Upload ảnh
+        uploaded_img = st.file_uploader("Đính kèm ảnh (Tùy chọn)", type=["jpg", "png", "jpeg"])
         
         if st.button("Đăng bài", type="primary"):
             if title and content:
+                image_url = None
+                if uploaded_img:
+                    try:
+                        f_bytes = uploaded_img.read()
+                        f_name = f"forum_{username}_{int(time.time())}.png"
+                        supabase.storage.from_("public_images").upload(file=f_bytes, path=f_name)
+                        image_url = supabase.storage.from_("public_images").get_public_url(f_name)
+                    except Exception as e:
+                        st.error(f"Lỗi upload ảnh: {e}")
+                
                 try:
                     supabase.table("forum_posts").insert({
                         "username": username, "title": title, 
-                        "content": content, "tags": tags_input
+                        "content": content, "tags": tags_input, "image_url": image_url
                     }).execute()
                     st.success("Đăng bài thành công!"); time.sleep(1); st.rerun()
                 except: st.error("Lỗi đăng bài!")
@@ -284,15 +372,19 @@ elif page == "Diễn đàn":
                 st.caption(f"Đăng bởi: **{post['username']}** | {post['created_at'][:10]}")
                 st.write(post['content'])
                 
-                # Hiển thị hashtag nếu có
+                # Hiển thị ảnh nếu có
+                if post.get('image_url'):
+                    st.image(post['image_url'], width=400)
+                
+                # Render hashtag
                 if post.get('tags'):
                     tag_list = [t.strip() for t in post['tags'].split(',') if t.strip()]
-                    hashtag_str = " ".join([f"#{t}" for t in tag_list])
-                    st.markdown(f"<span style='color:#3182CE; font-weight:bold;'>{hashtag_str}</span>", unsafe_allow_html=True)
+                    hashtag_html = "".join([f'<span class="hashtag-pill">#{t}</span>' for t in tag_list])
+                    st.markdown(hashtag_html, unsafe_allow_html=True)
     except: pass
 
 # --- TRANG 5: HỒ SƠ ---
-elif page == "Hồ sơ":
+elif st.session_state.page == "Hồ sơ":
     st.header("Hồ sơ cá nhân")
     
     if not st.session_state.get("edit_profile", False):
@@ -306,6 +398,11 @@ elif page == "Hồ sơ":
             join_date_str = user_info.get('created_at', str(now))[:10]
             join_date = datetime.strptime(join_date_str, "%Y-%m-%d").strftime("%d/%m/%Y")
             st.markdown(f"**Streak:** {user_info.get('streak_count', 1)} ngày | **Tham gia:** {join_date}")
+            
+            if st.button("Chỉnh sửa hồ sơ"):
+                st.session_state.edit_profile = True
+                st.rerun()
+                
             st.divider()
             dob_str = user_info.get('birth_date')
             dob = datetime.strptime(dob_str, "%Y-%m-%d").strftime("%d/%m/%Y") if dob_str else "Chưa cập nhật"
