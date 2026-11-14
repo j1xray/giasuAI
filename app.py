@@ -92,7 +92,7 @@ except Exception as e:
     st.error(f"Lỗi cấu hình Secrets: {e}")
     st.stop()
 
-# ===== 3. BỘ NÃO AI (ĐÃ CẬP NHẬT MODEL MỚI NHẤT) =====
+# ===== 3. BỘ NÃO AI (MODEL ỔN ĐỊNH) =====
 @st.cache_resource
 def get_tools():
     search = DuckDuckGoSearchRun()
@@ -105,12 +105,11 @@ tools = get_tools()
 
 def create_brain(model_type, system_prompt):
     if model_type == "gemini":
-        # Cập nhật lên model Gemini mới nhất (3.1 Flash Lite hoặc 4 Argon)
-        # Bạn có thể đổi thành "gemini-4-argon" nếu muốn mạnh hơn nữa
-        llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", api_key=st.secrets["GOOGLE_API_KEY"], temperature=0.1)
+        # Sử dụng Gemini 2.5 Flash (ổn định, hỗ trợ tool calling)
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=st.secrets["GOOGLE_API_KEY"], temperature=0.1)
     else:
-        # Cập nhật lên model Llama 4 Maverick mới nhất trên Groq
-        llm = ChatGroq(model="meta-llama/llama-4-maverick-17b-128e-instruct", api_key=st.secrets["GROQ_API_KEY"], temperature=0.1)
+        # Sử dụng Llama 3.3 70B (model đang hoạt động tốt trên Groq)
+        llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=st.secrets["GROQ_API_KEY"], temperature=0.1)
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt), ("human", "{input}"), ("placeholder", "{agent_scratchpad}"),
@@ -251,8 +250,8 @@ elif st.session_state.page == "Giải bài qua ảnh":
         st.image(img, width=250, caption="Ảnh đã tải lên")
         
         with st.spinner("Đang phân tích hình ảnh..."):
-            # Cập nhật model Gemini Vision mới nhất
-            model = genai.GenerativeModel('gemini-3.1-flash-lite') 
+            # Cập nhật model Gemini Vision ổn định
+            model = genai.GenerativeModel('gemini-2.5-flash') 
             res = model.generate_content(["Hãy giải chi tiết bài tập trong ảnh.", img])
             st.markdown("### Kết quả phân tích:")
             st.markdown(res.text)
