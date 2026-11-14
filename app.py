@@ -14,7 +14,7 @@ from langchain_core.tools import Tool
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
 
-# ===== 1. CẤU HÌNH UI (SIDEBAR ICON VÔ HÌNH) =====
+# ===== 1. CẤU HÌNH UI (SIDEBAR ICON VÔ HÌNH & PROFILE GỌN GÀNG) =====
 st.set_page_config(page_title="Gia Sư AI 2.0", page_icon="🧠", layout="wide")
 
 custom_css = """
@@ -52,12 +52,40 @@ header {visibility: hidden;}
     background-color: #313244 !important;
     color: #CBA6F7 !important;
 }
-[data-testid="stSidebar"] div.stButton > button:focus:not(:active) {
-    color: #CBA6F7 !important;
-    background-color: transparent !important;
+
+/* Profile Khối Gọn Gàng */
+.profile-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 15px;
+    background-color: transparent;
+    border-radius: 10px;
+    margin-bottom: 10px;
+}
+.profile-avatar {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #CBA6F7;
+}
+.profile-info {
+    display: flex;
+    flex-direction: column;
+}
+.profile-name {
+    font-weight: 600;
+    font-size: 16px;
+    color: #CDD6F4;
+    line-height: 1.2;
+}
+.profile-username {
+    font-size: 13px;
+    color: #A6ADC8;
 }
 
-/* Nút Primary (Đăng nhập, Lưu) */
+/* Nút Primary */
 div.stButton > button[kind="primary"] { background-color: #CBA6F7; color: #11111B; border: none; font-weight: 600; }
 div.stButton > button[kind="primary"]:hover { background-color: #F5C2E7; }
 
@@ -92,7 +120,7 @@ except Exception as e:
     st.error(f"Lỗi cấu hình Secrets: {e}")
     st.stop()
 
-# ===== 3. BỘ NÃO AI (MODEL ĐANG HOẠT ĐỘNG) =====
+# ===== 3. BỘ NÃO AI =====
 @st.cache_resource
 def get_tools():
     repl = PythonREPL()
@@ -103,10 +131,8 @@ tools = get_tools()
 
 def create_brain(model_type, system_prompt):
     if model_type == "gemini":
-        # Gemini 3.5 Flash Lite - model ổn định
         llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", api_key=st.secrets["GOOGLE_API_KEY"], temperature=0.1)
     else:
-        # ĐÃ SỬA: Dùng openai/gpt-oss-120b thay cho qwen đã bị gỡ
         llm = ChatGroq(model="openai/gpt-oss-120b", api_key=st.secrets["GROQ_API_KEY"], temperature=0.1)
     
     prompt = ChatPromptTemplate.from_messages([
@@ -167,17 +193,23 @@ try:
                 user_info["streak_count"] = 1
 except: pass
 
-# ===== 6. SIDEBAR (ICON VÔ HÌNH) =====
+# ===== 6. SIDEBAR (PROFILE GỌN GÀNG) =====
 with st.sidebar:
-    col_avt, col_info = st.columns([1, 2.5])
-    with col_avt:
-        avt_url = user_info.get("avatar_url") or (st.user.picture if st.user.is_logged_in else "")
-        if isinstance(avt_url, str) and avt_url.startswith("http"): st.image(avt_url, width=45)
-        else: st.write("👤")
-    with col_info:
-        st.write(f"**{user_info.get('display_name') or username}**")
+    # Lấy Avatar và Tên
+    avt_url = user_info.get("avatar_url") or (st.user.picture if st.user.is_logged_in else "https://api.dicebear.com/7.x/avataaars/svg?seed=" + username)
+    disp_name = user_info.get('display_name') or username
     
-    st.write("")
+    # Render khối Profile bằng HTML/CSS cho gọn
+    st.markdown(f"""
+    <div class="profile-container">
+        <img src="{avt_url}" class="profile-avatar">
+        <div class="profile-info">
+            <span class="profile-name">{disp_name}</span>
+            <span class="profile-username">@{username}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.divider()
     
     if "page" not in st.session_state: st.session_state.page = "Trợ lý AI"
@@ -253,15 +285,32 @@ elif st.session_state.page == "Giải bài qua ảnh":
             st.markdown("### Kết quả phân tích:")
             st.markdown(res.text)
 
-# --- TRANG 3: PHÒNG HỌC NHÓM ---
+# --- TRANG 3: PHÒNG HỌC NHÓM (CÓ TẮT/XÓA PHÒNG) ---
 elif st.session_state.page == "Phòng học nhóm":
     st.header("Phòng học nhóm")
     
+    # Nếu đang trong phòng
     if "active_room" in st.session_state and st.session_state.active_room:
         st.subheader(f"Đang trong phòng: {st.session_state.active_room}")
-        if st.button("Rời phòng", type="primary"):
-            st.session_state.active_room = None
-            st.rerun()
+        
+        col_leave, col_end = st.columns(2)
+        with col_leave:
+            if st.button("Rời phòng", type="primary", use_container_width=True):
+                st.session_state.active_room = None
+                st.rerun()
+        with col_end:
+            # Chỉ người tạo phòng hoặc Admin mới thấy nút Kết thúc
+            room_creator = st.session_state.get("active_room_creator", "")
+            if room_creator == username or is_admin:
+                if st.button("Kết thúc phòng (Xóa)", type="secondary", use_container_width=True):
+                    try:
+                        supabase.table("study_rooms").delete().eq("room_name", st.session_state.active_room).execute()
+                        st.session_state.active_room = None
+                        st.success("Đã kết thúc phòng!")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Lỗi xóa phòng: {e}")
             
         components.html(f"""
         <div id="jitsi-container" style="width: 100%; height: 500px; margin-top: 20px;"></div>
@@ -273,6 +322,7 @@ elif st.session_state.page == "Phòng học nhóm":
             }});
         </script>
         """, height=520)
+        
     else:
         col_create, col_list = st.columns([1, 2])
         
@@ -300,17 +350,24 @@ elif st.session_state.page == "Phòng học nhóm":
                 else:
                     for room in rooms.data:
                         with st.container(border=True):
-                            col_info, col_btn = st.columns([3, 1])
+                            col_info, col_btn = st.columns([2, 1])
                             with col_info:
                                 st.write(f"**{room['room_name']}**")
                                 st.caption(f"Tạo bởi: {room['created_by']}")
                             with col_btn:
-                                if st.button("Tham gia", key=f"join_{room['id']}"):
+                                if st.button("Tham gia", key=f"join_{room['id']}", use_container_width=True):
                                     st.session_state.active_room = room['room_name']
+                                    st.session_state.active_room_creator = room['created_by'] # Lưu người tạo để phân quyền
                                     st.rerun()
+                                
+                                # Nút xóa phòng cho người tạo hoặc Admin
+                                if room['created_by'] == username or is_admin:
+                                    if st.button("Xóa", key=f"del_room_{room['id']}", type="secondary", use_container_width=True):
+                                        supabase.table("study_rooms").delete().eq("id", room['id']).execute()
+                                        st.rerun()
             except: pass
 
-# --- TRANG 4: DIỄN ĐÀN ---
+# --- TRANG 4: DIỄN ĐÀN (CÓ XÓA BÀI) ---
 elif st.session_state.page == "Diễn đàn":
     st.header("Diễn đàn học tập")
     
@@ -347,7 +404,16 @@ elif st.session_state.page == "Diễn đàn":
         posts = supabase.table("forum_posts").select("*").order("created_at", desc=True).execute()
         for post in posts.data:
             with st.container(border=True):
-                st.markdown(f"### {post['title']}")
+                # Header bài viết (có nút xóa nếu là tác giả/admin)
+                col_title, col_del = st.columns([8, 1])
+                with col_title:
+                    st.markdown(f"### {post['title']}")
+                with col_del:
+                    if post['username'] == username or is_admin:
+                        if st.button("🗑️", key=f"del_post_{post['id']}", help="Xóa bài viết"):
+                            supabase.table("forum_posts").delete().eq("id", post['id']).execute()
+                            st.rerun()
+                            
                 st.caption(f"Đăng bởi: **{post['username']}** | {post['created_at'][:10]}")
                 st.write(post['content'])
                 
@@ -367,9 +433,8 @@ elif st.session_state.page == "Hồ sơ":
     if not st.session_state.get("edit_profile", False):
         col1, col2 = st.columns([1, 3])
         with col1:
-            avt = user_info.get("avatar_url") or (st.user.picture if st.user.is_logged_in else "")
-            if isinstance(avt, str) and avt.startswith("http"): st.image(avt, use_column_width=True)
-            else: st.write("Chưa có ảnh đại diện")
+            avt = user_info.get("avatar_url") or (st.user.picture if st.user.is_logged_in else "https://api.dicebear.com/7.x/avataaars/svg?seed=" + username)
+            st.image(avt, use_column_width=True)
         with col2:
             st.title(user_info.get("display_name") or username)
             join_date_str = user_info.get('created_at', str(now))[:10]
