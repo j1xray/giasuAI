@@ -17,7 +17,7 @@ from langchain_core.tools import Tool
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
 
-# ===== 1. CẤU HÌNH UI (SOFT DARK MODE & FACEBOOK SIDEBAR) =====
+# ===== 1. CẤU HÌNH UI =====
 st.set_page_config(page_title="Gia Sư AI 2.0", page_icon="🧠", layout="wide")
 
 custom_css = """
@@ -92,7 +92,7 @@ except Exception as e:
     st.error(f"Lỗi cấu hình Secrets: {e}")
     st.stop()
 
-# ===== 3. BỘ NÃO AI (MODEL ỔN ĐỊNH) =====
+# ===== 3. BỘ NÃO AI (MODEL CHUẨN 2026) =====
 @st.cache_resource
 def get_tools():
     search = DuckDuckGoSearchRun()
@@ -105,11 +105,11 @@ tools = get_tools()
 
 def create_brain(model_type, system_prompt):
     if model_type == "gemini":
-        # Sử dụng Gemini 2.5 Flash (ổn định, hỗ trợ tool calling)
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=st.secrets["GOOGLE_API_KEY"], temperature=0.1)
+        # MODEL CHUẨN: gemini-3.5-flash-lite (thay thế cho 2.5-flash đã bị deprecate)
+        llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", api_key=st.secrets["GOOGLE_API_KEY"], temperature=0.1)
     else:
-        # Sử dụng Llama 3.3 70B (model đang hoạt động tốt trên Groq)
-        llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=st.secrets["GROQ_API_KEY"], temperature=0.1)
+        # MODEL CHUẨN: openai/gpt-oss-120b (thay thế cho llama-3.3-70b-versatile đã bị tắt)
+        llm = ChatGroq(model="openai/gpt-oss-120b", api_key=st.secrets["GROQ_API_KEY"], temperature=0.1)
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt), ("human", "{input}"), ("placeholder", "{agent_scratchpad}"),
@@ -250,8 +250,8 @@ elif st.session_state.page == "Giải bài qua ảnh":
         st.image(img, width=250, caption="Ảnh đã tải lên")
         
         with st.spinner("Đang phân tích hình ảnh..."):
-            # Cập nhật model Gemini Vision ổn định
-            model = genai.GenerativeModel('gemini-2.5-flash') 
+            # Dùng model Gemini Vision ổn định
+            model = genai.GenerativeModel('gemini-3.5-flash-lite') 
             res = model.generate_content(["Hãy giải chi tiết bài tập trong ảnh.", img])
             st.markdown("### Kết quả phân tích:")
             st.markdown(res.text)
