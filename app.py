@@ -14,7 +14,7 @@ from langchain_core.tools import Tool
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
 
-# ===== 1. CẤU HÌNH UI (SIDEBAR ICON VÔ HÌNH & PROFILE GỌN GÀNG) =====
+# ===== 1. CẤU HÌNH UI (ĐÃ SỬA LỖI MẤT SIDEBAR) =====
 st.set_page_config(page_title="Gia Sư AI 2.0", page_icon="🧠", layout="wide")
 
 custom_css = """
@@ -22,7 +22,11 @@ custom_css = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 .stApp { background-color: #1E1E2E; color: #CDD6F4; }
-header {visibility: hidden;}
+
+/* SỬA LỖI TẠI ĐÂY: Chỉ ẩn menu mặc định và footer, giữ lại nút mở Sidebar */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {background: transparent !important;}
 
 /* Sidebar */
 [data-testid="stSidebar"] { 
@@ -195,11 +199,9 @@ except: pass
 
 # ===== 6. SIDEBAR (PROFILE GỌN GÀNG) =====
 with st.sidebar:
-    # Lấy Avatar và Tên
     avt_url = user_info.get("avatar_url") or (st.user.picture if st.user.is_logged_in else "https://api.dicebear.com/7.x/avataaars/svg?seed=" + username)
     disp_name = user_info.get('display_name') or username
     
-    # Render khối Profile bằng HTML/CSS cho gọn
     st.markdown(f"""
     <div class="profile-container">
         <img src="{avt_url}" class="profile-avatar">
@@ -285,11 +287,10 @@ elif st.session_state.page == "Giải bài qua ảnh":
             st.markdown("### Kết quả phân tích:")
             st.markdown(res.text)
 
-# --- TRANG 3: PHÒNG HỌC NHÓM (CÓ TẮT/XÓA PHÒNG) ---
+# --- TRANG 3: PHÒNG HỌC NHÓM ---
 elif st.session_state.page == "Phòng học nhóm":
     st.header("Phòng học nhóm")
     
-    # Nếu đang trong phòng
     if "active_room" in st.session_state and st.session_state.active_room:
         st.subheader(f"Đang trong phòng: {st.session_state.active_room}")
         
@@ -299,7 +300,6 @@ elif st.session_state.page == "Phòng học nhóm":
                 st.session_state.active_room = None
                 st.rerun()
         with col_end:
-            # Chỉ người tạo phòng hoặc Admin mới thấy nút Kết thúc
             room_creator = st.session_state.get("active_room_creator", "")
             if room_creator == username or is_admin:
                 if st.button("Kết thúc phòng (Xóa)", type="secondary", use_container_width=True):
@@ -357,17 +357,16 @@ elif st.session_state.page == "Phòng học nhóm":
                             with col_btn:
                                 if st.button("Tham gia", key=f"join_{room['id']}", use_container_width=True):
                                     st.session_state.active_room = room['room_name']
-                                    st.session_state.active_room_creator = room['created_by'] # Lưu người tạo để phân quyền
+                                    st.session_state.active_room_creator = room['created_by']
                                     st.rerun()
                                 
-                                # Nút xóa phòng cho người tạo hoặc Admin
                                 if room['created_by'] == username or is_admin:
                                     if st.button("Xóa", key=f"del_room_{room['id']}", type="secondary", use_container_width=True):
                                         supabase.table("study_rooms").delete().eq("id", room['id']).execute()
                                         st.rerun()
             except: pass
 
-# --- TRANG 4: DIỄN ĐÀN (CÓ XÓA BÀI) ---
+# --- TRANG 4: DIỄN ĐÀN ---
 elif st.session_state.page == "Diễn đàn":
     st.header("Diễn đàn học tập")
     
@@ -404,7 +403,6 @@ elif st.session_state.page == "Diễn đàn":
         posts = supabase.table("forum_posts").select("*").order("created_at", desc=True).execute()
         for post in posts.data:
             with st.container(border=True):
-                # Header bài viết (có nút xóa nếu là tác giả/admin)
                 col_title, col_del = st.columns([8, 1])
                 with col_title:
                     st.markdown(f"### {post['title']}")
