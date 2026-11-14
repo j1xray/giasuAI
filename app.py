@@ -3,7 +3,6 @@ import os
 import time
 import random
 import re
-import requests
 from datetime import datetime, timezone
 from PIL import Image
 import google.generativeai as genai
@@ -11,13 +10,12 @@ from supabase import create_client
 import streamlit.components.v1 as components
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
-from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_experimental.utilities import PythonREPL
 from langchain_core.tools import Tool
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
 
-# ===== 1. CẤU HÌNH UI =====
+# ===== 1. CẤU HÌNH UI (GIAO DIỆN MENU FACEBOOK) =====
 st.set_page_config(page_title="Gia Sư AI 2.0", page_icon="🧠", layout="wide")
 
 custom_css = """
@@ -26,48 +24,54 @@ custom_css = """
 html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 .stApp { background-color: #1E1E2E; color: #CDD6F4; }
 header {visibility: hidden;}
+
+/* Sidebar tổng thể */
 [data-testid="stSidebar"] { 
     background-color: #181825; 
     border-right: 1px solid #313244; 
-    padding-top: 20px;
+    padding-top: 15px;
 }
+
+/* XÓA NỀN & VIỀN CỦA NÚT BẤM, CHỈ GIỮ ICON VÀ CHỮ */
 [data-testid="stSidebar"] div.stButton > button {
     background-color: transparent !important;
     border: none !important;
+    box-shadow: none !important;
     text-align: left !important;
     justify-content: flex-start !important;
-    padding: 12px 15px !important;
-    font-size: 16px !important;
-    font-weight: 500 !important;
+    padding: 12px 20px !important;
+    font-size: 17px !important;
+    font-weight: 600 !important;
     color: #CDD6F4 !important;
-    border-radius: 8px !important;
-    transition: background-color 0.2s ease;
+    border-radius: 10px !important;
+    transition: background-color 0.2s ease !important;
     margin-bottom: 2px;
+    display: flex !important;
+    align-items: center !important;
 }
+
+/* HIỆU ỨNG KHI ĐƯA CHUỘT VÀO (GIỐNG FACEBOOK) */
 [data-testid="stSidebar"] div.stButton > button:hover {
     background-color: #313244 !important;
+    color: #CBA6F7 !important;
 }
+
 [data-testid="stSidebar"] div.stButton > button:focus:not(:active) {
     color: #CBA6F7 !important;
-    background-color: #313244 !important;
+    background-color: transparent !important;
 }
-.login-container {
-    background-color: #313244; padding: 40px; border-radius: 16px;
-    width: 100%; max-width: 420px; margin: 80px auto; text-align: center;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid #45475A;
-}
-.login-title { color: #CBA6F7; font-size: 28px; font-weight: 600; margin-bottom: 10px; }
-.login-subtitle { color: #A6ADC8; font-size: 14px; margin-bottom: 30px; }
+
+/* Các nút chung (Primary) */
 div.stButton > button[kind="primary"] { background-color: #CBA6F7; color: #11111B; border: none; font-weight: 600; }
 div.stButton > button[kind="primary"]:hover { background-color: #F5C2E7; }
+
+/* Ô nhập liệu */
 div[data-testid="stTextInput"] input, div[data-testid="stTextArea"] textarea { 
     background-color: #181825 !important; color: #CDD6F4 !important; 
     border: 1px solid #45475A !important; border-radius: 8px !important; 
 }
-.st-key-btn_edit_sidebar button { 
-    width: fit-content !important; padding: 2px 12px !important; font-size: 12px !important; 
-    border-radius: 20px !important; margin-top: 5px !important;
-}
+
+/* CSS cho Hashtag */
 .hashtag-pill {
     display: inline-block;
     background-color: #313244;
@@ -92,24 +96,23 @@ except Exception as e:
     st.error(f"Lỗi cấu hình Secrets: {e}")
     st.stop()
 
-# ===== 3. BỘ NÃO AI (MODEL CHUẨN 2026) =====
+# ===== 3. BỘ NÃO AI (KHÔNG DÙNG TOOL SEARCH ĐỂ TRÁNH LỖI IMPORT) =====
 @st.cache_resource
 def get_tools():
-    search = DuckDuckGoSearchRun()
-    search_tool = Tool(name="web_search", func=search.run, description="Tìm kiếm thông tin mới nhất.")
+    # Chỉ dùng Python REPL để tính toán và chạy code, bỏ DuckDuckGo để chống lỗi
     repl = PythonREPL()
     repl_tool = Tool(name="python_repl", func=repl.run, description="Chạy code Python để tính toán.")
-    return [search_tool, repl_tool]
+    return [repl_tool]
 
 tools = get_tools()
 
 def create_brain(model_type, system_prompt):
     if model_type == "gemini":
-        # MODEL CHUẨN: gemini-3.5-flash-lite (thay thế cho 2.5-flash đã bị deprecate)
-        llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", api_key=st.secrets["GOOGLE_API_KEY"], temperature=0.1)
+        # Model ổn định
+        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", api_key=st.secrets["GOOGLE_API_KEY"], temperature=0.1)
     else:
-        # MODEL CHUẨN: openai/gpt-oss-120b (thay thế cho llama-3.3-70b-versatile đã bị tắt)
-        llm = ChatGroq(model="openai/gpt-oss-120b", api_key=st.secrets["GROQ_API_KEY"], temperature=0.1)
+        # Model ổn định
+        llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=st.secrets["GROQ_API_KEY"], temperature=0.1)
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt), ("human", "{input}"), ("placeholder", "{agent_scratchpad}"),
@@ -125,26 +128,26 @@ if "code_brain" not in st.session_state:
 # ===== 4. ĐĂNG NHẬP =====
 if not st.user.is_logged_in and "guest_user" not in st.session_state:
     st.markdown("""
-    <div class="login-container">
-        <div class="login-title">Gia Sư AI 2.0</div>
-        <div class="login-subtitle">Nền tảng học tập và hỗ trợ kỹ thuật thông minh</div>
+    <div style="background-color: #313244; padding: 40px; border-radius: 16px; max-width: 400px; margin: 80px auto; text-align: center; border: 1px solid #45475A;">
+        <h2 style="color: #CBA6F7; margin-bottom: 10px;">Gia Sư AI 2.0</h2>
+        <p style="color: #A6ADC8; margin-bottom: 30px;">Học tập thông minh hơn</p>
     </div>
     """, unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
-        if st.button("Đăng nhập bằng Google", use_container_width=True):
+        if st.button("🌐 Đăng nhập bằng Google", use_container_width=True):
             try: st.login("google")
             except Exception as e: st.error(f"Lỗi: {e}")
         st.markdown("<div style='text-align:center; color:#A0AEC0; margin:15px 0;'>hoặc</div>", unsafe_allow_html=True)
         guest_name = st.text_input("Tên khách", placeholder="Nhập tên của bạn", label_visibility="collapsed")
-        if st.button("Đăng nhập với tư cách Khách", use_container_width=True, type="primary"):
+        if st.button("👤 Đăng nhập với tư cách Khách", use_container_width=True, type="primary"):
             st.session_state.guest_user = guest_name.strip() if guest_name.strip() else f"Guest_{random.randint(1000, 9999)}"
             st.rerun()
     st.stop()
 
 # ===== 5. USER INFO & ADMIN =====
-ADMIN_EMAIL = "j1xray0@gmail.com" # Thay email của bạn vào đây
+ADMIN_EMAIL = "j1xray@gmail.com" # Thay email của bạn vào đây
 username = st.session_state.get("guest_user") or st.user.email.split('@')[0]
 is_admin = (st.user.email == ADMIN_EMAIL) if st.user.is_logged_in else False
 
@@ -169,12 +172,13 @@ try:
                 user_info["streak_count"] = 1
 except: pass
 
-# ===== 6. SIDEBAR (GIAO DIỆN FACEBOOK) =====
+# ===== 6. SIDEBAR (GIAO DIỆN FACEBOOK VÔ HÌNH) =====
 with st.sidebar:
+    # Profile Header
     col_avt, col_info = st.columns([1, 2.5])
     with col_avt:
         avt_url = user_info.get("avatar_url") or (st.user.picture if st.user.is_logged_in else "")
-        if isinstance(avt_url, str) and avt_url.startswith("http"): st.image(avt_url, width=40)
+        if isinstance(avt_url, str) and avt_url.startswith("http"): st.image(avt_url, width=45)
         else: st.write("👤")
     with col_info:
         st.write(f"**{user_info.get('display_name') or username}**")
@@ -182,26 +186,27 @@ with st.sidebar:
     st.write("")
     st.divider()
     
+    # Menu Điều hướng với Icon vô hình
     if "page" not in st.session_state: st.session_state.page = "Trợ lý AI"
     
-    if st.button("Trang chủ (Trợ lý AI)", use_container_width=True):
+    if st.button("🏠  Trang chủ (Trợ lý AI)", use_container_width=True):
         st.session_state.page = "Trợ lý AI"
         st.rerun()
-    if st.button("Giải bài qua ảnh", use_container_width=True):
+    if st.button("📸  Giải bài qua ảnh", use_container_width=True):
         st.session_state.page = "Giải bài qua ảnh"
         st.rerun()
-    if st.button("Phòng học nhóm", use_container_width=True):
+    if st.button("🎥  Phòng học nhóm", use_container_width=True):
         st.session_state.page = "Phòng học nhóm"
         st.rerun()
-    if st.button("Diễn đàn học tập", use_container_width=True):
+    if st.button("📚  Diễn đàn học tập", use_container_width=True):
         st.session_state.page = "Diễn đàn"
         st.rerun()
-    if st.button("Hồ sơ cá nhân", use_container_width=True):
+    if st.button("👤  Hồ sơ cá nhân", use_container_width=True):
         st.session_state.page = "Hồ sơ"
         st.rerun()
     
     st.divider()
-    if st.button("Đăng xuất", use_container_width=True):
+    if st.button("🚪  Đăng xuất", use_container_width=True):
         st.session_state.clear()
         if st.user.is_logged_in: st.logout()
         st.rerun()
@@ -232,7 +237,7 @@ if st.session_state.page == "Trợ lý AI":
                 st.markdown(ans)
                 st.session_state[f"msgs_{tab_key}"].append({"role": "assistant", "content": ans})
 
-# --- TRANG 2: GIẢI BÀI QUA ẢNH (BẢO MẬT CAMERA) ---
+# --- TRANG 2: GIẢI BÀI QUA ẢNH ---
 elif st.session_state.page == "Giải bài qua ảnh":
     st.header("Giải bài tập qua ảnh")
     st.write("Vui lòng chọn nguồn ảnh. Hệ thống không tự động bật camera để bảo vệ quyền riêng tư.")
@@ -250,8 +255,7 @@ elif st.session_state.page == "Giải bài qua ảnh":
         st.image(img, width=250, caption="Ảnh đã tải lên")
         
         with st.spinner("Đang phân tích hình ảnh..."):
-            # Dùng model Gemini Vision ổn định
-            model = genai.GenerativeModel('gemini-3.5-flash-lite') 
+            model = genai.GenerativeModel('gemini-1.5-flash') 
             res = model.generate_content(["Hãy giải chi tiết bài tập trong ảnh.", img])
             st.markdown("### Kết quả phân tích:")
             st.markdown(res.text)
@@ -313,7 +317,7 @@ elif st.session_state.page == "Phòng học nhóm":
                                     st.rerun()
             except: pass
 
-# --- TRANG 4: DIỄN ĐÀN (CÓ ĐĂNG ẢNH) ---
+# --- TRANG 4: DIỄN ĐÀN ---
 elif st.session_state.page == "Diễn đàn":
     st.header("Diễn đàn học tập")
     
