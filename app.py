@@ -103,11 +103,11 @@ tools = get_tools()
 
 def create_brain(model_type, system_prompt):
     if model_type == "gemini":
-        # Gemini 3.5 Flash Lite - model ổn định, thay thế 1.5-flash đã retired
+        # Gemini 3.5 Flash Lite - model ổn định
         llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", api_key=st.secrets["GOOGLE_API_KEY"], temperature=0.1)
     else:
-        # Qwen 3.6 27B - model thay thế Llama 3.3 trên Groq, hỗ trợ chat tốt
-        llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=st.secrets["GROQ_API_KEY"], temperature=0.1)
+        # ĐÃ SỬA: Dùng openai/gpt-oss-120b thay cho qwen đã bị gỡ
+        llm = ChatGroq(model="openai/gpt-oss-120b", api_key=st.secrets["GROQ_API_KEY"], temperature=0.1)
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt), ("human", "{input}"), ("placeholder", "{agent_scratchpad}"),
@@ -248,7 +248,6 @@ elif st.session_state.page == "Giải bài qua ảnh":
         st.image(img, width=250, caption="Ảnh đã tải lên")
         
         with st.spinner("Đang phân tích hình ảnh..."):
-            # Gemini 3.5 Flash Lite hỗ trợ vision
             model = genai.GenerativeModel('gemini-3.5-flash-lite') 
             res = model.generate_content(["Hãy giải chi tiết bài tập trong ảnh.", img])
             st.markdown("### Kết quả phân tích:")
