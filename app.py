@@ -26,15 +26,11 @@ custom_css = """
 html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 .stApp { background-color: #1E1E2E; color: #CDD6F4; }
 header {visibility: hidden;}
-
-/* Sidebar tổng thể */
 [data-testid="stSidebar"] { 
     background-color: #181825; 
     border-right: 1px solid #313244; 
     padding-top: 20px;
 }
-
-/* BIẾN NÚT BẤM THÀNH MENU FACEBOOK */
 [data-testid="stSidebar"] div.stButton > button {
     background-color: transparent !important;
     border: none !important;
@@ -55,8 +51,6 @@ header {visibility: hidden;}
     color: #CBA6F7 !important;
     background-color: #313244 !important;
 }
-
-/* Khung Đăng Nhập */
 .login-container {
     background-color: #313244; padding: 40px; border-radius: 16px;
     width: 100%; max-width: 420px; margin: 80px auto; text-align: center;
@@ -64,24 +58,16 @@ header {visibility: hidden;}
 }
 .login-title { color: #CBA6F7; font-size: 28px; font-weight: 600; margin-bottom: 10px; }
 .login-subtitle { color: #A6ADC8; font-size: 14px; margin-bottom: 30px; }
-
-/* Nút bấm chung (Primary) */
 div.stButton > button[kind="primary"] { background-color: #CBA6F7; color: #11111B; border: none; font-weight: 600; }
 div.stButton > button[kind="primary"]:hover { background-color: #F5C2E7; }
-
-/* Ô nhập liệu */
 div[data-testid="stTextInput"] input, div[data-testid="stTextArea"] textarea { 
     background-color: #181825 !important; color: #CDD6F4 !important; 
     border: 1px solid #45475A !important; border-radius: 8px !important; 
 }
-
-/* Nút Sửa nhỏ gọn ở Profile Sidebar */
 .st-key-btn_edit_sidebar button { 
     width: fit-content !important; padding: 2px 12px !important; font-size: 12px !important; 
     border-radius: 20px !important; margin-top: 5px !important;
 }
-
-/* CSS cho Hashtag */
 .hashtag-pill {
     display: inline-block;
     background-color: #313244;
@@ -106,7 +92,7 @@ except Exception as e:
     st.error(f"Lỗi cấu hình Secrets: {e}")
     st.stop()
 
-# ===== 3. BỘ NÃO AI =====
+# ===== 3. BỘ NÃO AI (ĐÃ CẬP NHẬT MODEL MỚI NHẤT) =====
 @st.cache_resource
 def get_tools():
     search = DuckDuckGoSearchRun()
@@ -119,9 +105,12 @@ tools = get_tools()
 
 def create_brain(model_type, system_prompt):
     if model_type == "gemini":
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", api_key=st.secrets["GOOGLE_API_KEY"], temperature=0.1)
+        # Cập nhật lên model Gemini mới nhất (3.1 Flash Lite hoặc 4 Argon)
+        # Bạn có thể đổi thành "gemini-4-argon" nếu muốn mạnh hơn nữa
+        llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", api_key=st.secrets["GOOGLE_API_KEY"], temperature=0.1)
     else:
-        llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=st.secrets["GROQ_API_KEY"], temperature=0.1)
+        # Cập nhật lên model Llama 4 Maverick mới nhất trên Groq
+        llm = ChatGroq(model="meta-llama/llama-4-maverick-17b-128e-instruct", api_key=st.secrets["GROQ_API_KEY"], temperature=0.1)
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt), ("human", "{input}"), ("placeholder", "{agent_scratchpad}"),
@@ -183,7 +172,6 @@ except: pass
 
 # ===== 6. SIDEBAR (GIAO DIỆN FACEBOOK) =====
 with st.sidebar:
-    # Avatar & Tên (Giống Facebook Header)
     col_avt, col_info = st.columns([1, 2.5])
     with col_avt:
         avt_url = user_info.get("avatar_url") or (st.user.picture if st.user.is_logged_in else "")
@@ -192,10 +180,9 @@ with st.sidebar:
     with col_info:
         st.write(f"**{user_info.get('display_name') or username}**")
     
-    st.write("") # Khoảng cách
+    st.write("")
     st.divider()
     
-    # Menu dạng Facebook (Dùng button thay vì radio)
     if "page" not in st.session_state: st.session_state.page = "Trợ lý AI"
     
     if st.button("Trang chủ (Trợ lý AI)", use_container_width=True):
@@ -251,23 +238,21 @@ elif st.session_state.page == "Giải bài qua ảnh":
     st.header("Giải bài tập qua ảnh")
     st.write("Vui lòng chọn nguồn ảnh. Hệ thống không tự động bật camera để bảo vệ quyền riêng tư.")
     
-    # Mặc định index=0 (Tải ảnh từ máy) -> KHÔNG bật cam
     img_source = st.radio("Chọn cách tải ảnh:", ["Tải ảnh từ máy", "Chụp ảnh bằng Camera"], horizontal=True, index=0)
     
     image_data = None
     if img_source == "Tải ảnh từ máy":
         image_data = st.file_uploader("Tải ảnh bài tập", type=["jpg", "png", "jpeg"])
     else:
-        # Chỉ khi chọn "Chụp ảnh" thì cam mới bật
         image_data = st.camera_input("Chụp ảnh bài tập")
 
     if image_data:
         img = Image.open(image_data)
         st.image(img, width=250, caption="Ảnh đã tải lên")
         
-        # Tự động xử lý ngay khi có ảnh
         with st.spinner("Đang phân tích hình ảnh..."):
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            # Cập nhật model Gemini Vision mới nhất
+            model = genai.GenerativeModel('gemini-3.1-flash-lite') 
             res = model.generate_content(["Hãy giải chi tiết bài tập trong ảnh.", img])
             st.markdown("### Kết quả phân tích:")
             st.markdown(res.text)
@@ -337,8 +322,6 @@ elif st.session_state.page == "Diễn đàn":
         title = st.text_input("Tiêu đề")
         content = st.text_area("Nội dung bài viết")
         tags_input = st.text_input("Hashtag (cách nhau bằng dấu phẩy, VD: toan12, onthi)")
-        
-        # Nút Upload ảnh
         uploaded_img = st.file_uploader("Đính kèm ảnh (Tùy chọn)", type=["jpg", "png", "jpeg"])
         
         if st.button("Đăng bài", type="primary"):
@@ -372,11 +355,9 @@ elif st.session_state.page == "Diễn đàn":
                 st.caption(f"Đăng bởi: **{post['username']}** | {post['created_at'][:10]}")
                 st.write(post['content'])
                 
-                # Hiển thị ảnh nếu có
                 if post.get('image_url'):
                     st.image(post['image_url'], width=400)
                 
-                # Render hashtag
                 if post.get('tags'):
                     tag_list = [t.strip() for t in post['tags'].split(',') if t.strip()]
                     hashtag_html = "".join([f'<span class="hashtag-pill">#{t}</span>' for t in tag_list])
