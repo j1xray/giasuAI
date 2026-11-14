@@ -2,7 +2,6 @@ import streamlit as st
 import os
 import time
 import random
-import re
 from datetime import datetime, timezone
 from PIL import Image
 import google.generativeai as genai
@@ -15,7 +14,7 @@ from langchain_core.tools import Tool
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
 
-# ===== 1. CẤU HÌNH UI (GIAO DIỆN MENU FACEBOOK) =====
+# ===== 1. CẤU HÌNH UI (SIDEBAR ICON VÔ HÌNH) =====
 st.set_page_config(page_title="Gia Sư AI 2.0", page_icon="🧠", layout="wide")
 
 custom_css = """
@@ -25,14 +24,14 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 .stApp { background-color: #1E1E2E; color: #CDD6F4; }
 header {visibility: hidden;}
 
-/* Sidebar tổng thể */
+/* Sidebar */
 [data-testid="stSidebar"] { 
     background-color: #181825; 
     border-right: 1px solid #313244; 
     padding-top: 15px;
 }
 
-/* XÓA NỀN & VIỀN CỦA NÚT BẤM, CHỈ GIỮ ICON VÀ CHỮ */
+/* --- ICON VÔ HÌNH GIỐNG FACEBOOK --- */
 [data-testid="stSidebar"] div.stButton > button {
     background-color: transparent !important;
     border: none !important;
@@ -49,19 +48,16 @@ header {visibility: hidden;}
     display: flex !important;
     align-items: center !important;
 }
-
-/* HIỆU ỨNG KHI ĐƯA CHUỘT VÀO (GIỐNG FACEBOOK) */
 [data-testid="stSidebar"] div.stButton > button:hover {
     background-color: #313244 !important;
     color: #CBA6F7 !important;
 }
-
 [data-testid="stSidebar"] div.stButton > button:focus:not(:active) {
     color: #CBA6F7 !important;
     background-color: transparent !important;
 }
 
-/* Các nút chung (Primary) */
+/* Nút Primary (Đăng nhập, Lưu) */
 div.stButton > button[kind="primary"] { background-color: #CBA6F7; color: #11111B; border: none; font-weight: 600; }
 div.stButton > button[kind="primary"]:hover { background-color: #F5C2E7; }
 
@@ -71,7 +67,7 @@ div[data-testid="stTextInput"] input, div[data-testid="stTextArea"] textarea {
     border: 1px solid #45475A !important; border-radius: 8px !important; 
 }
 
-/* CSS cho Hashtag */
+/* Hashtag */
 .hashtag-pill {
     display: inline-block;
     background-color: #313244;
@@ -96,10 +92,9 @@ except Exception as e:
     st.error(f"Lỗi cấu hình Secrets: {e}")
     st.stop()
 
-# ===== 3. BỘ NÃO AI (KHÔNG DÙNG TOOL SEARCH ĐỂ TRÁNH LỖI IMPORT) =====
+# ===== 3. BỘ NÃO AI (MODEL ĐANG HOẠT ĐỘNG) =====
 @st.cache_resource
 def get_tools():
-    # Chỉ dùng Python REPL để tính toán và chạy code, bỏ DuckDuckGo để chống lỗi
     repl = PythonREPL()
     repl_tool = Tool(name="python_repl", func=repl.run, description="Chạy code Python để tính toán.")
     return [repl_tool]
@@ -108,11 +103,11 @@ tools = get_tools()
 
 def create_brain(model_type, system_prompt):
     if model_type == "gemini":
-        # Model ổn định
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", api_key=st.secrets["GOOGLE_API_KEY"], temperature=0.1)
+        # Gemini 3.5 Flash Lite - model ổn định, thay thế 1.5-flash đã retired
+        llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite", api_key=st.secrets["GOOGLE_API_KEY"], temperature=0.1)
     else:
-        # Model ổn định
-        llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=st.secrets["GROQ_API_KEY"], temperature=0.1)
+        # Qwen 3.6 27B - model thay thế Llama 3.3 trên Groq, hỗ trợ chat tốt
+        llm = ChatGroq(model="qwen/qwen3.6-27b", api_key=st.secrets["GROQ_API_KEY"], temperature=0.1)
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt), ("human", "{input}"), ("placeholder", "{agent_scratchpad}"),
@@ -147,7 +142,7 @@ if not st.user.is_logged_in and "guest_user" not in st.session_state:
     st.stop()
 
 # ===== 5. USER INFO & ADMIN =====
-ADMIN_EMAIL = "j1xray@gmail.com" # Thay email của bạn vào đây
+ADMIN_EMAIL = "j1xray0@gmail.com" # Thay email của bạn vào đây
 username = st.session_state.get("guest_user") or st.user.email.split('@')[0]
 is_admin = (st.user.email == ADMIN_EMAIL) if st.user.is_logged_in else False
 
@@ -172,9 +167,8 @@ try:
                 user_info["streak_count"] = 1
 except: pass
 
-# ===== 6. SIDEBAR (GIAO DIỆN FACEBOOK VÔ HÌNH) =====
+# ===== 6. SIDEBAR (ICON VÔ HÌNH) =====
 with st.sidebar:
-    # Profile Header
     col_avt, col_info = st.columns([1, 2.5])
     with col_avt:
         avt_url = user_info.get("avatar_url") or (st.user.picture if st.user.is_logged_in else "")
@@ -186,7 +180,6 @@ with st.sidebar:
     st.write("")
     st.divider()
     
-    # Menu Điều hướng với Icon vô hình
     if "page" not in st.session_state: st.session_state.page = "Trợ lý AI"
     
     if st.button("🏠  Trang chủ (Trợ lý AI)", use_container_width=True):
@@ -255,7 +248,8 @@ elif st.session_state.page == "Giải bài qua ảnh":
         st.image(img, width=250, caption="Ảnh đã tải lên")
         
         with st.spinner("Đang phân tích hình ảnh..."):
-            model = genai.GenerativeModel('gemini-1.5-flash') 
+            # Gemini 3.5 Flash Lite hỗ trợ vision
+            model = genai.GenerativeModel('gemini-3.5-flash-lite') 
             res = model.generate_content(["Hãy giải chi tiết bài tập trong ảnh.", img])
             st.markdown("### Kết quả phân tích:")
             st.markdown(res.text)
