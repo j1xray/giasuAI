@@ -1,3 +1,6 @@
+import requests
+import base64
+import streamlit as st
 import streamlit as st
 from datetime import datetime, timezone, timedelta
 import google.generativeai as genai
@@ -61,3 +64,39 @@ def get_user_data(supabase, username, is_logged_in):
                     user_info["streak_count"] = 1
     except: pass
     return user_info
+
+def create_payment_link(username, amount=10000):
+    """Tạo link thanh toán qua ApiPay"""
+    # Lấy key từ Secrets
+    access_key = st.secrets.get("APIPAY_ACCESS_KEY", "")
+    secret_key = st.secrets.get("APIPAY_SECRET_KEY", "")
+    
+    if not access_key or not secret_key:
+        return {"error": "Chưa cấu hình ApiPay Key trong Secrets"}
+
+    # Tạo chuỗi xác thực Basic Auth
+    auth_str = f"{access_key}:{secret_key}"
+    auth_base64 = base64.b64encode(auth_str.encode()).decode()
+    
+    headers = {
+        "Authorization": f"Bearer {auth_base64}",
+        "Content-Type": "application/json"
+    }
+    
+    # Nội dung chuyển khoản (Mã đơn hàng)
+    order_code = f"UPGRADE_{username}_{int(datetime.now().timestamp())}"
+    
+    payload = {
+        "bankPublicId": "bank_abc123",  # ⚠️ BẠN CẦN THAY MÃ NGÂN HÀNG MB CỦA BẠN TRÊN APIPAY VÀO ĐÂY
+        "amount": amount,
+        "content": order_code
+    }
+    
+    try:
+        response = requests.post("https://app.apipay.vn/v1/client/payment-requests", json=payload, headers=headers)
+        if response.status_code == 200:
+            return response.json()  # Trả về link thanh toán (payUrl)
+        else:
+            return {"error": f"Lỗi ApiPay: {response.text}"}
+    except Exception as e:
+        return {"error": str(e)}
