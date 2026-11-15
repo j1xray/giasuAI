@@ -14,11 +14,10 @@ from langchain_core.tools import Tool
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
 
-# ===== 1. CẤU HÌNH UI (GIAO DIỆN DISCORD BANNER & ICON FONTAWESOME) =====
+# ===== 1. CẤU HÌNH UI (GIAO DIỆN DISCORD BANNER & EMOJI) =====
 st.set_page_config(page_title="Gia Sư AI 2.0", page_icon="🧠", layout="wide")
 
 custom_css = """
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
@@ -35,7 +34,7 @@ header {background: transparent !important;}
     padding-top: 15px;
 }
 
-/* Nút Menu với Icon FontAwesome */
+/* Nút Menu (Trong suốt, căn trái, hiệu ứng hover) */
 [data-testid="stSidebar"] div.stButton > button {
     background-color: transparent !important;
     border: none !important;
@@ -55,22 +54,6 @@ header {background: transparent !important;}
     background-color: #313244 !important;
     color: #CBA6F7 !important;
 }
-[data-testid="stSidebar"] div.stButton > button:before {
-    margin-right: 12px;
-    font-family: "Font Awesome 6 Free"; 
-    font-weight: 900;
-    font-size: 18px;
-    width: 20px;
-    text-align: center;
-}
-/* Gán Icon cho từng nút dựa trên thứ tự */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(1)::before { content: "\\f015"; } /* Home */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(2)::before { content: "\\f0c0"; } /* Users */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(3)::before { content: "\\f03d"; } /* Camera */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(4)::before { content: "\\f008"; } /* Video */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(5)::before { content: "\\f086"; } /* Comments */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(6)::before { content: "\\f007"; } /* User */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(7)::before { content: "\\f2f5"; } /* Sign-out */
 
 /* Khối Profile Sidebar */
 .profile-container {
@@ -204,7 +187,7 @@ with col_btn:
             time.sleep(2)
             st.rerun()
 
-# ===== 7. SIDEBAR =====
+# ===== 7. SIDEBAR (EMOJI) =====
 with st.sidebar:
     avt_url = user_info.get("avatar_url") or (st.user.picture if st.user.is_logged_in else "https://api.dicebear.com/7.x/avataaars/svg?seed=" + username)
     disp_name = user_info.get('display_name') or username
@@ -223,16 +206,16 @@ with st.sidebar:
     
     if "page" not in st.session_state: st.session_state.page = "Trợ lý AI"
     
-    # Các nút này sẽ tự động nhận Icon FontAwesome từ CSS
-    if st.button("Trợ lý AI", use_container_width=True): st.session_state.page = "Trợ lý AI"; st.rerun()
-    if st.button("Nhóm học tập", use_container_width=True): st.session_state.page = "Nhóm"; st.rerun()
-    if st.button("Giải bài qua ảnh", use_container_width=True): st.session_state.page = "Giải bài qua ảnh"; st.rerun()
-    if st.button("Phòng học nhóm", use_container_width=True): st.session_state.page = "Phòng học nhóm"; st.rerun()
-    if st.button("Diễn đàn", use_container_width=True): st.session_state.page = "Diễn đàn"; st.rerun()
-    if st.button("Hồ sơ", use_container_width=True): st.session_state.page = "Hồ sơ"; st.rerun()
+    # Đã đưa Emoji trở lại
+    if st.button("🏠 Trang chủ (Trợ lý AI)", use_container_width=True): st.session_state.page = "Trợ lý AI"; st.rerun()
+    if st.button("👥 Nhóm học tập", use_container_width=True): st.session_state.page = "Nhóm"; st.rerun()
+    if st.button("📸 Giải bài qua ảnh", use_container_width=True): st.session_state.page = "Giải bài qua ảnh"; st.rerun()
+    if st.button("🎥 Phòng học nhóm", use_container_width=True): st.session_state.page = "Phòng học nhóm"; st.rerun()
+    if st.button("📚 Diễn đàn", use_container_width=True): st.session_state.page = "Diễn đàn"; st.rerun()
+    if st.button("👤 Hồ sơ", use_container_width=True): st.session_state.page = "Hồ sơ"; st.rerun()
     
     st.markdown("<br><br>", unsafe_allow_html=True)
-    if st.button("Đăng xuất", use_container_width=True):
+    if st.button("🚪 Đăng xuất", use_container_width=True):
         st.session_state.clear()
         if st.user.is_logged_in: st.logout()
         st.rerun()
