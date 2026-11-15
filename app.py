@@ -14,10 +14,11 @@ from langchain_core.tools import Tool
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
 
-# ===== 1. CẤU HÌNH UI (GIỐNG HỆT ẢNH CHỤP) =====
+# ===== 1. CẤU HÌNH UI (GIAO DIỆN DISCORD BANNER & ICON VÔ HÌNH) =====
 st.set_page_config(page_title="Gia Sư AI 2.0", page_icon="🧠", layout="wide")
 
 custom_css = """
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
@@ -31,20 +32,20 @@ header {background: transparent !important;}
 [data-testid="stSidebar"] { 
     background-color: #181825; 
     border-right: 1px solid #313244; 
-    padding-top: 20px;
+    padding-top: 15px;
 }
 
-/* Menu Nút bấm (Giống hệt ảnh: trong suốt, căn trái) */
+/* Nút Menu với Icon FontAwesome (Ẩn nền, chỉ hiện icon và chữ) */
 [data-testid="stSidebar"] div.stButton > button {
     background-color: transparent !important;
     border: none !important;
     text-align: left !important;
     justify-content: flex-start !important;
-    padding: 12px 15px !important;
-    font-size: 15px !important;
-    font-weight: 500 !important;
+    padding: 10px 15px !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
     color: #CDD6F4 !important;
-    border-radius: 8px !important;
+    border-radius: 10px !important;
     transition: background-color 0.2s ease !important;
     margin-bottom: 2px;
     display: flex !important;
@@ -52,7 +53,24 @@ header {background: transparent !important;}
 }
 [data-testid="stSidebar"] div.stButton > button:hover {
     background-color: #313244 !important;
+    color: #CBA6F7 !important;
 }
+[data-testid="stSidebar"] div.stButton > button:before {
+    margin-right: 12px;
+    font-family: "Font Awesome 6 Free"; 
+    font-weight: 900;
+    font-size: 18px;
+    width: 20px;
+    text-align: center;
+}
+/* Gán Icon cho từng nút dựa trên thứ tự */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(1)::before { content: "\\f015"; } /* Home/Trợ lý AI */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(2)::before { content: "\\f0c0"; } /* Users/Nhóm */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(3)::before { content: "\\f03d"; } /* Camera/Giải ảnh */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(4)::before { content: "\\f008"; } /* Video/Phòng */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(5)::before { content: "\\f086"; } /* Comments/Diễn đàn */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(6)::before { content: "\\f007"; } /* User/Hồ sơ */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(7)::before { content: "\\f2f5"; } /* Sign-out */
 
 /* Khối Profile Sidebar */
 .profile-container {
@@ -66,7 +84,7 @@ header {background: transparent !important;}
 .profile-name { font-weight: 600; font-size: 15px; color: #CDD6F4; line-height: 1.2; }
 .profile-username { font-size: 13px; color: #A6ADC8; }
 
-/* Nút Primary (Nâng cấp Premium) */
+/* Nút Primary */
 div.stButton > button[kind="primary"] { background-color: #CBA6F7; color: #11111B; border: none; font-weight: 600; }
 div.stButton > button[kind="primary"]:hover { background-color: #F5C2E7; }
 
@@ -186,13 +204,11 @@ with col_btn:
             time.sleep(2)
             st.rerun()
 
-# ===== 7. SIDEBAR (GIAO DIỆN Y HỆT ẢNH) =====
+# ===== 7. SIDEBAR =====
 with st.sidebar:
-    # Lấy Avatar và Tên
     avt_url = user_info.get("avatar_url") or (st.user.picture if st.user.is_logged_in else "https://api.dicebear.com/7.x/avataaars/svg?seed=" + username)
     disp_name = user_info.get('display_name') or username
     
-    # HTML cho khối Profile (Avatar tròn + Tên + @username)
     st.markdown(f"""
     <div class="profile-container">
         <img src="{avt_url}" class="profile-avatar">
@@ -207,17 +223,16 @@ with st.sidebar:
     
     if "page" not in st.session_state: st.session_state.page = "Trợ lý AI"
     
-    # Các nút menu (dùng Emoji như trong ảnh)
-    if st.button("🏠 Trang chủ (Trợ lý AI)", use_container_width=True): st.session_state.page = "Trợ lý AI"; st.rerun()
-    if st.button("📸 Giải bài qua ảnh", use_container_width=True): st.session_state.page = "Giải bài qua ảnh"; st.rerun()
-    if st.button("🎥 Phòng học nhóm", use_container_width=True): st.session_state.page = "Phòng học nhóm"; st.rerun()
-    if st.button("📚 Diễn đàn học tập", use_container_width=True): st.session_state.page = "Diễn đàn"; st.rerun()
-    if st.button("👤 Hồ sơ cá nhân", use_container_width=True): st.session_state.page = "Hồ sơ"; st.rerun()
+    # Các nút này sẽ tự động nhận Icon FontAwesome từ CSS ở trên
+    if st.button("Trợ lý AI", use_container_width=True): st.session_state.page = "Trợ lý AI"; st.rerun()
+    if st.button("Nhóm học tập", use_container_width=True): st.session_state.page = "Nhóm"; st.rerun()
+    if st.button("Giải bài qua ảnh", use_container_width=True): st.session_state.page = "Giải bài qua ảnh"; st.rerun()
+    if st.button("Phòng học nhóm", use_container_width=True): st.session_state.page = "Phòng học nhóm"; st.rerun()
+    if st.button("Diễn đàn", use_container_width=True): st.session_state.page = "Diễn đàn"; st.rerun()
+    if st.button("Hồ sơ", use_container_width=True): st.session_state.page = "Hồ sơ"; st.rerun()
     
-    # Khoảng trống để đẩy nút Đăng xuất xuống đáy (nếu muốn)
     st.markdown("<br><br>", unsafe_allow_html=True)
-    
-    if st.button("🚪 Đăng xuất", use_container_width=True):
+    if st.button("Đăng xuất", use_container_width=True):
         st.session_state.clear()
         if st.user.is_logged_in: st.logout()
         st.rerun()
@@ -254,7 +269,7 @@ if st.session_state.page == "Trợ lý AI":
                         supabase.table("users").update({"daily_questions": daily_questions + 1}).eq("username", username).execute()
                         st.rerun()
 
-# --- TRANG 2: NHÓM HỌC TẬP ---
+# --- TRANG 2: NHÓM HỌC TẬP (ĐÃ THÊM LẠI) ---
 elif st.session_state.page == "Nhóm":
     st.header("Nhóm học tập")
     
@@ -290,7 +305,7 @@ elif st.session_state.page == "Nhóm":
                     with col_info:
                         label = "[Cộng đồng]" if g['group_type'] == 'community' else ("[Bạn bè]" if g['group_type'] == 'friends' else "[Học tập]")
                         st.markdown(f"### {label} {g['group_name']}")
-                        st.caption(f"Loại: **{g['group_type'].capitalize()}** | Tạo bởi: **{g['created_by']}**")
+                        st.caption(f"Tạo bởi: **{g['created_by']}**")
                     with col_btn:
                         st.button("Tham gia", key=f"join_group_{g['id']}", use_container_width=True)
     except: pass
@@ -428,52 +443,42 @@ elif st.session_state.page == "Diễn đàn":
                             st.rerun()
     except: pass
 
-# --- TRANG 6: HỒ SƠ (GIAO DIỆN Y HỆT ẢNH) ---
+# --- TRANG 6: HỒ SƠ (GIAO DIỆN DISCORD BANNER) ---
 elif st.session_state.page == "Hồ sơ":
     if not st.session_state.get("edit_profile", False):
-        # Tiêu đề
-        st.markdown("<h2 style='color: #CDD6F4; margin-bottom: 20px;'>Hồ sơ cá nhân</h2>", unsafe_allow_html=True)
         
-        # Bố cục Avatar bên trái, Thông tin bên phải
-        col1, col2 = st.columns([1, 3])
+        banner_url = user_info.get("banner_url") or "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=2070&auto=format&fit=crop"
+        avt_url = user_info.get("avatar_url") or "https://api.dicebear.com/7.x/avataaars/svg?seed=" + username
         
+        # HTML/CSS Tạo Banner chuẩn Discord
+        st.markdown(f"""
+        <div style="position: relative; margin-bottom: 70px;">
+            <div style="width: 100%; height: 220px; background-image: url('{banner_url}'); background-size: cover; background-position: center; border-radius: 12px; background-color: #313244;"></div>
+            <div style="position: absolute; bottom: -50px; left: 30px;">
+                <img src="{avt_url}" style="width: 120px; height: 120px; border-radius: 50%; border: 6px solid #1E1E2E; object-fit: cover;">
+            </div>
+        </div>
+        <div style="padding-left: 30px;">
+            <h1 style="color: #89B4FA; margin: 0; font-size: 28px;">{user_info.get('display_name') or username}</h1>
+            <span style="color: #A6ADC8; font-size: 15px;">@{username}</span>
+            <br><br>
+            <span style="color: #A6ADC8; font-size: 14px;">Streak: {user_info.get('streak_count', 1)} ngày | Tham gia: {user_info.get('created_at', '')[:10]}</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        col1, col2 = st.columns([1, 4])
         with col1:
-            avt = user_info.get("avatar_url") or "https://api.dicebear.com/7.x/avataaars/svg?seed=" + username
-            # Hiển thị Avatar bo góc (giống ảnh là hình vuông bo nhẹ hoặc tròn tùy ảnh gốc)
-            st.markdown(f'<img src="{avt}" style="width: 150px; height: 150px; object-fit: cover; border-radius: 12px;">', unsafe_allow_html=True)
-            
-        with col2:
-            # Tên hiển thị lớn màu xanh sáng
-            st.markdown(f"<h1 style='color: #89B4FA; margin-top: 0;'>{user_info.get('display_name') or username}</h1>", unsafe_allow_html=True)
-            
-            # Streak và Ngày tham gia
-            join_date_str = user_info.get('created_at', str(now))[:10]
-            join_date = datetime.strptime(join_date_str, "%Y-%m-%d").strftime("%d/%m/%Y")
-            st.markdown(f"<span style='color: #A6ADC8; font-size: 15px;'>Streak: {user_info.get('streak_count', 1)} ngày | Tham gia: {join_date}</span>", unsafe_allow_html=True)
-            
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-            # Nút chỉnh sửa (Viền xám, nền trong suốt)
-            if st.button("Chỉnh sửa hồ sơ"):
+            if st.button("Chỉnh sửa hồ sơ", use_container_width=True):
                 st.session_state.edit_profile = True
                 st.rerun()
                 
-        st.markdown("<hr style='border-color: #313244; margin: 30px 0;'>", unsafe_allow_html=True)
+        st.markdown("<hr style='border-color: #313244; margin: 20px 0;'>", unsafe_allow_html=True)
         
-        # Thông tin chi tiết (Ngày sinh, Giới tính, Giới thiệu)
-        dob_str = user_info.get('birth_date')
-        dob = datetime.strptime(dob_str, "%Y-%m-%d").strftime("%d/%m/%Y") if dob_str else "Chưa cập nhật"
-        
-        st.markdown(f"**Ngày sinh:** {dob}")
+        # Thông tin chi tiết
+        st.markdown(f"**Ngày sinh:** {user_info.get('birth_date') or 'Chưa cập nhật'}")
         st.markdown(f"**Giới tính:** {user_info.get('gender') or 'Chưa cập nhật'}")
         st.markdown(f"**Giới thiệu:** {user_info.get('bio') or 'Chưa có thông tin.'}")
         
-        # Hiển thị Banner nếu có (nằm dưới cùng hoặc trên cùng tùy bạn, ở đây mình để dưới cùng cho giống bố cục)
-        banner_url = user_info.get("banner_url")
-        if banner_url:
-            st.markdown("<br><br>", unsafe_allow_html=True)
-            st.image(banner_url, use_column_width=True)
-            
     else:
         # Form chỉnh sửa
         st.subheader("Chỉnh sửa Hồ sơ")
