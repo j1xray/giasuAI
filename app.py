@@ -14,7 +14,7 @@ from langchain_core.tools import Tool
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
 
-# ===== 1. CẤU HÌNH UI (GIAO DIỆN DISCORD BANNER & EMOJI) =====
+# ===== 1. CẤU HÌNH UI =====
 st.set_page_config(page_title="Gia Sư AI 2.0", page_icon="🧠", layout="wide")
 
 custom_css = """
@@ -34,7 +34,7 @@ header {background: transparent !important;}
     padding-top: 15px;
 }
 
-/* Nút Menu (Trong suốt, căn trái, hiệu ứng hover) */
+/* Nút Menu */
 [data-testid="stSidebar"] div.stButton > button {
     background-color: transparent !important;
     border: none !important;
@@ -67,7 +67,24 @@ header {background: transparent !important;}
 .profile-name { font-weight: 600; font-size: 15px; color: #CDD6F4; line-height: 1.2; }
 .profile-username { font-size: 13px; color: #A6ADC8; }
 
-/* Nút Primary */
+/* CSS ĐẶC BIỆT CHO NÚT CHỈNH SỬA HỒ SƠ */
+.st-key-btn_edit_profile button {
+    background-color: transparent !important;
+    color: #CDD6F4 !important;
+    border: 1px solid #585B70 !important;
+    border-radius: 20px !important; /* Bo tròn dạng viên thuốc */
+    font-size: 14px !important;
+    padding: 5px 15px !important;
+    font-weight: 600 !important;
+    transition: all 0.2s ease !important;
+}
+.st-key-btn_edit_profile button:hover {
+    background-color: #313244 !important;
+    border-color: #CBA6F7 !important;
+    color: #CBA6F7 !important;
+}
+
+/* Nút Primary (Nâng cấp) */
 div.stButton > button[kind="primary"] { background-color: #CBA6F7; color: #11111B; border: none; font-weight: 600; }
 div.stButton > button[kind="primary"]:hover { background-color: #F5C2E7; }
 
@@ -136,7 +153,7 @@ if not st.user.is_logged_in and "guest_user" not in st.session_state:
     st.stop()
 
 # ===== 5. USER INFO & ADMIN =====
-ADMIN_EMAIL = "j1xray0@gmail.com" # ⚠️ THAY EMAIL CỦA BẠN
+ADMIN_EMAIL = "j1xray0gmail.com" # ⚠️ THAY EMAIL CỦA BẠN
 username = st.session_state.get("guest_user") or st.user.email.split('@')[0]
 is_admin = (st.user.email == ADMIN_EMAIL) if st.user.is_logged_in else False
 
@@ -206,7 +223,6 @@ with st.sidebar:
     
     if "page" not in st.session_state: st.session_state.page = "Trợ lý AI"
     
-    # Đã đưa Emoji trở lại
     if st.button("🏠 Trang chủ (Trợ lý AI)", use_container_width=True): st.session_state.page = "Trợ lý AI"; st.rerun()
     if st.button("👥 Nhóm học tập", use_container_width=True): st.session_state.page = "Nhóm"; st.rerun()
     if st.button("📸 Giải bài qua ảnh", use_container_width=True): st.session_state.page = "Giải bài qua ảnh"; st.rerun()
@@ -426,7 +442,7 @@ elif st.session_state.page == "Diễn đàn":
                             st.rerun()
     except: pass
 
-# --- TRANG 6: HỒ SƠ (GIAO DIỆN DISCORD BANNER) ---
+# --- TRANG 6: HỒ SƠ (ĐÃ SỬA LẠI NÚT CHỈNH SỬA) ---
 elif st.session_state.page == "Hồ sơ":
     if not st.session_state.get("edit_profile", False):
         
@@ -441,17 +457,25 @@ elif st.session_state.page == "Hồ sơ":
                 <img src="{avt_url}" style="width: 120px; height: 120px; border-radius: 50%; border: 6px solid #1E1E2E; object-fit: cover;">
             </div>
         </div>
-        <div style="padding-left: 30px;">
-            <h1 style="color: #89B4FA; margin: 0; font-size: 28px;">{user_info.get('display_name') or username}</h1>
-            <span style="color: #A6ADC8; font-size: 15px;">@{username}</span>
-            <br><br>
-            <span style="color: #A6ADC8; font-size: 14px;">Streak: {user_info.get('streak_count', 1)} ngày | Tham gia: {user_info.get('created_at', '')[:10]}</span>
-        </div>
         """, unsafe_allow_html=True)
         
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            if st.button("Chỉnh sửa hồ sơ", use_container_width=True):
+        # CHIA CỘT ĐỂ ĐƯA NÚT CHỈNH SỬA SANG BÊN PHẢI CHO ĐẸP
+        col_info, col_edit = st.columns([3, 1])
+        
+        with col_info:
+            st.markdown(f"""
+            <div style="padding-left: 30px;">
+                <h1 style="color: #89B4FA; margin: 0; font-size: 32px;">{user_info.get('display_name') or username}</h1>
+                <span style="color: #A6ADC8; font-size: 15px;">@{username}</span>
+                <br><br>
+                <span style="color: #A6ADC8; font-size: 14px;">Streak: {user_info.get('streak_count', 1)} ngày | Tham gia: {user_info.get('created_at', '')[:10]}</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        with col_edit:
+            st.markdown("<br><br>", unsafe_allow_html=True) # Đẩy nút xuống cho thẳng hàng với text
+            # Nút này đã được CSS class `.st-key-btn_edit_profile` làm đẹp ở trên
+            if st.button("Chỉnh sửa hồ sơ", key="btn_edit_profile", use_container_width=True):
                 st.session_state.edit_profile = True
                 st.rerun()
                 
