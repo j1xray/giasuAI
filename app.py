@@ -14,7 +14,7 @@ from langchain_core.tools import Tool
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
 
-# ===== 1. CẤU HÌNH UI (GIAO DIỆN DISCORD BANNER & ICON VÔ HÌNH) =====
+# ===== 1. CẤU HÌNH UI (GIAO DIỆN DISCORD BANNER & ICON FONTAWESOME) =====
 st.set_page_config(page_title="Gia Sư AI 2.0", page_icon="🧠", layout="wide")
 
 custom_css = """
@@ -35,7 +35,7 @@ header {background: transparent !important;}
     padding-top: 15px;
 }
 
-/* Nút Menu với Icon FontAwesome (Ẩn nền, chỉ hiện icon và chữ) */
+/* Nút Menu với Icon FontAwesome */
 [data-testid="stSidebar"] div.stButton > button {
     background-color: transparent !important;
     border: none !important;
@@ -64,12 +64,12 @@ header {background: transparent !important;}
     text-align: center;
 }
 /* Gán Icon cho từng nút dựa trên thứ tự */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(1)::before { content: "\\f015"; } /* Home/Trợ lý AI */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(2)::before { content: "\\f0c0"; } /* Users/Nhóm */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(3)::before { content: "\\f03d"; } /* Camera/Giải ảnh */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(4)::before { content: "\\f008"; } /* Video/Phòng */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(5)::before { content: "\\f086"; } /* Comments/Diễn đàn */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(6)::before { content: "\\f007"; } /* User/Hồ sơ */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(1)::before { content: "\\f015"; } /* Home */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(2)::before { content: "\\f0c0"; } /* Users */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(3)::before { content: "\\f03d"; } /* Camera */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(4)::before { content: "\\f008"; } /* Video */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(5)::before { content: "\\f086"; } /* Comments */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(6)::before { content: "\\f007"; } /* User */
 [data-testid="stSidebar"] div.stButton > button:nth-of-type(7)::before { content: "\\f2f5"; } /* Sign-out */
 
 /* Khối Profile Sidebar */
@@ -223,7 +223,7 @@ with st.sidebar:
     
     if "page" not in st.session_state: st.session_state.page = "Trợ lý AI"
     
-    # Các nút này sẽ tự động nhận Icon FontAwesome từ CSS ở trên
+    # Các nút này sẽ tự động nhận Icon FontAwesome từ CSS
     if st.button("Trợ lý AI", use_container_width=True): st.session_state.page = "Trợ lý AI"; st.rerun()
     if st.button("Nhóm học tập", use_container_width=True): st.session_state.page = "Nhóm"; st.rerun()
     if st.button("Giải bài qua ảnh", use_container_width=True): st.session_state.page = "Giải bài qua ảnh"; st.rerun()
@@ -269,7 +269,7 @@ if st.session_state.page == "Trợ lý AI":
                         supabase.table("users").update({"daily_questions": daily_questions + 1}).eq("username", username).execute()
                         st.rerun()
 
-# --- TRANG 2: NHÓM HỌC TẬP (ĐÃ THÊM LẠI) ---
+# --- TRANG 2: NHÓM HỌC TẬP ---
 elif st.session_state.page == "Nhóm":
     st.header("Nhóm học tập")
     
