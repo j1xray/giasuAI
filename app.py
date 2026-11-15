@@ -14,7 +14,7 @@ from langchain_core.tools import Tool
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
 
-# ===== 1. CẤU HÌNH UI =====
+# ===== 1. CẤU HÌNH UI (SOFT DARK MODE & FONTAWESOME) =====
 st.set_page_config(page_title="Gia Sư AI 2.0", page_icon="🧠", layout="wide")
 
 custom_css = """
@@ -28,14 +28,14 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 footer {visibility: hidden;}
 header {background: transparent !important;}
 
-/* Sidebar */
+/* Sidebar tổng thể */
 [data-testid="stSidebar"] { 
     background-color: #181825; 
     border-right: 1px solid #313244; 
     padding-top: 15px;
 }
 
-/* Nút Menu với Icon FontAwesome */
+/* Nút Menu với Icon FontAwesome (Ẩn nền, chỉ hiện icon và chữ) */
 [data-testid="stSidebar"] div.stButton > button {
     background-color: transparent !important;
     border: none !important;
@@ -56,17 +56,20 @@ header {background: transparent !important;}
     color: #CBA6F7 !important;
 }
 [data-testid="stSidebar"] div.stButton > button:before {
-    margin-right: 10px;
+    margin-right: 12px;
     font-family: "Font Awesome 6 Free"; 
     font-weight: 900;
+    font-size: 18px;
 }
+/* Gán Icon cho từng nút dựa trên thứ tự */
 [data-testid="stSidebar"] div.stButton > button:nth-of-type(1)::before { content: "\\f015"; } /* Home */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(2)::before { content: "\\f0c0"; } /* Groups */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(2)::before { content: "\\f0c0"; } /* Users */
 [data-testid="stSidebar"] div.stButton > button:nth-of-type(3)::before { content: "\\f03d"; } /* Camera */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(4)::before { content: "\\f1d7"; } /* Comments/Forum */
-[data-testid="stSidebar"] div.stButton > button:nth-of-type(5)::before { content: "\\f007"; } /* User */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(4)::before { content: "\\f008"; } /* Video/Phòng */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(5)::before { content: "\\f086"; } /* Comments/Forum */
+[data-testid="stSidebar"] div.stButton > button:nth-of-type(6)::before { content: "\\f007"; } /* User/Profile */
 
-/* Khối Profile */
+/* Khối Profile Gọn Gàng */
 .profile-container {
     display: flex; align-items: center; gap: 12px; padding: 10px;
     background-color: #313244; border-radius: 10px; margin-bottom: 15px;
@@ -75,7 +78,7 @@ header {background: transparent !important;}
 .profile-name { font-weight: 600; font-size: 16px; color: #CDD6F4; }
 .profile-username { font-size: 12px; color: #A6ADC8; }
 
-/* Nút Primary */
+/* Nút Primary (Nâng cấp, Lưu) */
 div.stButton > button[kind="primary"] { background-color: #CBA6F7; color: #11111B; border: none; font-weight: 600; }
 div.stButton > button[kind="primary"]:hover { background-color: #F5C2E7; }
 
@@ -184,12 +187,10 @@ daily_questions = user_info.get("daily_questions", 0)
 col_header, col_btn = st.columns([8, 2])
 with col_btn:
     if is_premium:
-        st.success("⭐ Gói Premium")
+        st.success("Gói Premium")
     else:
         st.info(f"Bản Free (Câu hỏi: {daily_questions}/10)")
-        if st.button("💎 Nâng cấp (10k/tháng)", type="primary", use_container_width=True):
-            # NƠI TÍCH HỢP API THANH TOÁN ALIPAY / APIPAY
-            # Tạm thời giả lập thanh toán thành công để test
+        if st.button("Nâng cấp (10k/tháng)", type="primary", use_container_width=True):
             st.info("Đang chuyển hướng đến cổng thanh toán Alipay...")
             time.sleep(1)
             supabase.table("users").update({"is_premium": True}).eq("username", username).execute()
@@ -216,6 +217,7 @@ with st.sidebar:
     
     if "page" not in st.session_state: st.session_state.page = "Trợ lý AI"
     
+    # Các nút này sẽ tự động nhận Icon FontAwesome từ CSS ở trên
     if st.button("Trợ lý AI", use_container_width=True): st.session_state.page = "Trợ lý AI"; st.rerun()
     if st.button("Nhóm học tập", use_container_width=True): st.session_state.page = "Nhóm"; st.rerun()
     if st.button("Giải bài qua ảnh", use_container_width=True): st.session_state.page = "Giải bài qua ảnh"; st.rerun()
@@ -231,7 +233,7 @@ with st.sidebar:
 
 # ===== 8. HIỂN THỊ CÁC TRANG =====
 
-# --- TRANG 1: TRỢ LÝ AI (S1) ---
+# --- TRANG 1: TRỢ LÝ AI ---
 if st.session_state.page == "Trợ lý AI":
     st.header("Trợ lý AI")
     ai_type = st.selectbox("Chọn chế độ", ["Gia sư Toán", "Kỹ sư Code"])
@@ -243,7 +245,7 @@ if st.session_state.page == "Trợ lý AI":
         with st.chat_message(m["role"]): st.markdown(m["content"])
         
     if not is_premium and daily_questions >= 10:
-        st.warning("🛑 Bạn đã hết 10 câu hỏi miễn phí hôm nay. Vui lòng nâng cấp Premium để tiếp tục.")
+        st.warning("Bạn đã hết 10 câu hỏi miễn phí hôm nay. Vui lòng nâng cấp Premium để tiếp tục.")
     else:
         if prompt := st.chat_input(f"Nhập yêu cầu cho {ai_type}..."):
             st.session_state[f"msgs_{tab_key}"].append({"role": "user", "content": prompt})
@@ -261,11 +263,11 @@ if st.session_state.page == "Trợ lý AI":
                         supabase.table("users").update({"daily_questions": daily_questions + 1}).eq("username", username).execute()
                         st.rerun()
 
-# --- TRANG 2: NHÓM HỌC TẬP (S2) ---
+# --- TRANG 2: NHÓM HỌC TẬP ---
 elif st.session_state.page == "Nhóm":
     st.header("Nhóm học tập")
     
-    with st.expander("➕ Tạo nhóm mới"):
+    with st.expander("Tạo nhóm mới"):
         with st.form("create_group_form"):
             group_name = st.text_input("Tên nhóm")
             if is_admin:
@@ -295,14 +297,15 @@ elif st.session_state.page == "Nhóm":
                 with st.container(border=True):
                     col_info, col_btn = st.columns([4, 1])
                     with col_info:
-                        icon = "🌐" if g['group_type'] == 'community' else ("👥" if g['group_type'] == 'friends' else "📚")
-                        st.markdown(f"### {icon} {g['group_name']}")
+                        # Sử dụng nhãn chữ thay vì emoji
+                        label = "[Cộng đồng]" if g['group_type'] == 'community' else ("[Bạn bè]" if g['group_type'] == 'friends' else "[Học tập]")
+                        st.markdown(f"### {label} {g['group_name']}")
                         st.caption(f"Loại: **{g['group_type'].capitalize()}** | Tạo bởi: **{g['created_by']}**")
                     with col_btn:
                         st.button("Tham gia", key=f"join_group_{g['id']}", use_container_width=True)
     except: pass
 
-# --- TRANG 3: GIẢI BÀI QUA ẢNH (S3) ---
+# --- TRANG 3: GIẢI BÀI QUA ẢNH ---
 elif st.session_state.page == "Giải bài qua ảnh":
     st.header("Giải bài tập qua ảnh")
     img_source = st.radio("Nguồn ảnh:", ["Tải ảnh từ máy", "Chụp ảnh bằng Camera"], horizontal=True, index=0)
@@ -381,7 +384,7 @@ elif st.session_state.page == "Phòng học nhóm":
                                 st.rerun()
             except: pass
 
-# --- TRANG 5: DIỄN ĐÀN (S4) ---
+# --- TRANG 5: DIỄN ĐÀN ---
 elif st.session_state.page == "Diễn đàn":
     st.header("Diễn đàn học tập")
     
@@ -412,7 +415,7 @@ elif st.session_state.page == "Diễn đàn":
                 with col_title: st.markdown(f"### {post['title']}")
                 with col_del:
                     if post['username'] == username or is_admin:
-                        if st.button("🗑️", key=f"del_post_{post['id']}"):
+                        if st.button("Xóa", key=f"del_post_{post['id']}"):
                             supabase.table("forum_posts").delete().eq("id", post['id']).execute()
                             st.rerun()
                             
@@ -423,7 +426,7 @@ elif st.session_state.page == "Diễn đàn":
                     hashtag_html = "".join([f'<span class="hashtag-pill">#{t.strip()}</span>' for t in post['tags'].split(',') if t.strip()])
                     st.markdown(hashtag_html, unsafe_allow_html=True)
                 
-                with st.expander("💬 Bình luận"):
+                with st.expander("Bình luận"):
                     comments = supabase.table("forum_comments").select("*").eq("post_id", post['id']).order("created_at").execute()
                     for cmt in comments.data:
                         st.markdown(f"**{cmt['username']}**: {cmt['comment']}")
@@ -450,8 +453,8 @@ elif st.session_state.page == "Hồ sơ":
             st.image(avt, use_column_width=True)
         with col2:
             st.title(user_info.get("display_name") or username)
-            st.markdown(f"**Streak:** 🔥 {user_info.get('streak_count', 1)} ngày | **Tham gia:** {user_info.get('created_at', '')[:10]}")
-            if st.button("✏️ Chỉnh sửa hồ sơ"):
+            st.markdown(f"**Streak:** {user_info.get('streak_count', 1)} ngày | **Tham gia:** {user_info.get('created_at', '')[:10]}")
+            if st.button("Chỉnh sửa hồ sơ"):
                 st.session_state.edit_profile = True
                 st.rerun()
             st.divider()
@@ -470,7 +473,7 @@ elif st.session_state.page == "Hồ sơ":
         
         col_s, col_c = st.columns(2)
         with col_s:
-            if st.button("💾 Lưu thay đổi", type="primary", use_container_width=True):
+            if st.button("Lưu thay đổi", type="primary", use_container_width=True):
                 upd = {"display_name": new_name, "bio": new_bio}
                 if avt_file:
                     f_bytes = avt_file.read()
