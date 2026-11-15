@@ -9,7 +9,7 @@ from langchain_core.tools import Tool
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
 
-ADMIN_EMAIL = "email_cua_ban@gmail.com" # ⚠️ THAY EMAIL CỦA BẠN
+ADMIN_EMAIL = "j1xray0@gmail.com" # ⚠️ THAY EMAIL CỦA BẠN
 
 @st.cache_resource
 def init_connections():
