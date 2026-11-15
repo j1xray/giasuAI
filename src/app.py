@@ -46,13 +46,19 @@ with col_btn:
     else:
         st.info(f"Bản Free (Câu hỏi: {daily_questions}/10)")
         if st.button("Nâng cấp (10k/tháng)", type="primary", use_container_width=True):
-            st.info("Đang chuyển hướng đến cổng thanh toán...")
-            time.sleep(1)
-            supabase.table("users").update({"is_premium": True}).eq("username", username).execute()
-            st.success("Thanh toán thành công!")
-            time.sleep(2)
-            st.rerun()
-
+            with st.spinner("Đang tạo mã thanh toán..."):
+                # Gọi hàm tạo link từ backend
+                payment_data = backend.create_payment_link(username, 10000)
+                
+                if "error" in payment_data:
+                    st.error(payment_data["error"])
+                else:
+                    # Lấy link thanh toán và chuyển hướng
+                    pay_url = payment_data.get("payUrl")
+                    if pay_url:
+                        st.markdown(f'<meta http-equiv="refresh" content="0; url={pay_url}">', unsafe_allow_html=True)
+                    else:
+                        st.error("Không lấy được link thanh toán.")
 # 6. Sidebar
 ui.render_sidebar(user_info, username, is_admin)
 
