@@ -10,3 +10,4 @@ openai
 Pillow
 requests
 pypdf
+streamlit-autorefresh
