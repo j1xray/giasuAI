@@ -42,6 +42,14 @@ def load_css():
         display: inline-block; background-color: #313244; color: #89B4FA; padding: 4px 12px; 
         border-radius: 16px; font-size: 13px; font-weight: 600; margin-right: 6px; margin-top: 8px; border: 1px solid #45475A;
     }
+
+    /* NHÓM 3: CSS CHO ĐIỆN THOẠI (MOBILE) */
+    @media (max-width: 768px) {
+        [data-testid="stSidebar"] { display: none; } /* Ẩn sidebar trên mobile */
+        .block-container { padding: 1rem !important; }
+        h1 { font-size: 24px !important; }
+        h2 { font-size: 20px !important; }
+    }
     </style>
     """
     st.markdown(custom_css, unsafe_allow_html=True)
@@ -72,7 +80,21 @@ def render_sidebar(user_info, username, is_admin):
         if st.button("📚 Diễn đàn", use_container_width=True): st.session_state.page = "Diễn đàn"; st.rerun()
         if st.button("👤 Hồ sơ", use_container_width=True): st.session_state.page = "Hồ sơ"; st.rerun()
         
+        # NHÓM 2: NÚT ADMIN (Chỉ hiện với Admin)
+        if is_admin:
+            if st.button("👑 Trang Quản Trị", use_container_width=True): st.session_state.page = "Admin"; st.rerun()
+            
         st.markdown("<br><br>", unsafe_allow_html=True)
+        
+        # NHÓM 3: PHÁP LÝ
+        with st.expander("📜 Điều khoản & Bảo mật"):
+            st.markdown("""
+            <div style='font-size:12px; color:#A6ADC8;'>
+            <b>Điều khoản:</b> Ứng dụng hỗ trợ học tập. Nghiêm cấm dùng để gian lận thi cử.<br><br>
+            <b>Bảo mật:</b> Chúng tôi cam kết bảo vệ dữ liệu theo Nghị định 13/2023/NĐ-CP.
+            </div>
+            """, unsafe_allow_html=True)
+            
         if st.button("🚪 Đăng xuất", use_container_width=True):
             st.session_state.clear()
             if st.user.is_logged_in: st.logout()
