@@ -3,7 +3,7 @@ import time
 from PIL import Image
 import google.generativeai as genai
 import streamlit.components.v1 as components
-from src import backend # Import backend
+import backend # Import backend
 
 def render_ai(supabase, math_brain, code_brain, username, is_premium, daily_questions):
     st.header("Trợ lý AI")
