@@ -1,6 +1,3 @@
-import requests
-import base64
-import streamlit as st
 import streamlit as st
 from datetime import datetime, timezone, timedelta
 import google.generativeai as genai
@@ -12,7 +9,7 @@ from langchain_core.tools import Tool
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
 
-ADMIN_EMAIL = "j1xray0@gmail.com" # ⚠️ THAY EMAIL CỦA BẠN
+ADMIN_EMAIL = "j1xray0@gmail.com" # THAY EMAIL ADMIN VÀO ĐÂY
 
 @st.cache_resource
 def init_connections():
@@ -38,7 +35,6 @@ def get_user_data(supabase, username, is_logged_in):
     now = datetime.now(timezone.utc)
     today_date = now.date().isoformat()
     user_info = {}
-    
     try:
         user_check = supabase.table("users").select("*").eq("username", username).execute()
         if not user_check.data:
@@ -50,53 +46,42 @@ def get_user_data(supabase, username, is_logged_in):
                 supabase.table("users").update({"daily_questions": 0, "last_active_date": today_date}).eq("username", username).execute()
                 user_info["daily_questions"] = 0
                 user_info["last_active_date"] = today_date
-                
-            last_login_str = user_info.get("last_login")
-            if last_login_str:
-                last_login = datetime.fromisoformat(last_login_str.replace('Z', '+00:00'))
-                days_diff = (now.date() - last_login.date()).days
-                if days_diff == 1:
-                    new_streak = user_info.get("streak_count", 1) + 1
-                    supabase.table("users").update({"last_login": now.isoformat(), "streak_count": new_streak}).eq("username", username).execute()
-                    user_info["streak_count"] = new_streak
-                elif days_diff > 1:
-                    supabase.table("users").update({"last_login": now.isoformat(), "streak_count": 1}).eq("username", username).execute()
-                    user_info["streak_count"] = 1
     except: pass
     return user_info
 
-def create_payment_link(username, amount=10000):
-    """Tạo link thanh toán qua ApiPay"""
-    # Lấy key từ Secrets
-    access_key = st.secrets.get("APIPAY_ACCESS_KEY", "")
-    secret_key = st.secrets.get("APIPAY_SECRET_KEY", "")
-    
-    if not access_key or not secret_key:
-        return {"error": "Chưa cấu hình ApiPay Key trong Secrets"}
+# HÀM LƯU LỊCH SỬ CHAT & GỬI TIN NHẮN
+def send_message(supabase, sender, content, receiver=None, group_id=None, file_url=None, msg_type="text"):
+    supabase.table("messages").insert({
+        "sender": sender, "receiver": receiver, "group_id": group_id,
+        "content": content, "file_url": file_url, "msg_type": msg_type
+    }).execute()
 
-    # Tạo chuỗi xác thực Basic Auth
-    auth_str = f"{access_key}:{secret_key}"
-    auth_base64 = base64.b64encode(auth_str.encode()).decode()
-    
-    headers = {
-        "Authorization": f"Bearer {auth_base64}",
-        "Content-Type": "application/json"
-    }
-    
-    # Nội dung chuyển khoản (Mã đơn hàng)
-    order_code = f"UPGRADE_{username}_{int(datetime.now().timestamp())}"
-    
-    payload = {
-        "bankPublicId": "bank_abc123",  # ⚠️ BẠN CẦN THAY MÃ NGÂN HÀNG MB CỦA BẠN TRÊN APIPAY VÀO ĐÂY
-        "amount": amount,
-        "content": order_code
-    }
-    
+def get_messages(supabase, receiver=None, group_id=None):
+    if group_id:
+        res = supabase.table("messages").select("*").eq("group_id", group_id).order("created_at").execute()
+    else:
+        # Lấy tin nhắn giữa user A và user B (cả 2 chiều)
+        # Vì Supabase không hỗ trợ query phức tạp dễ dàng, ta lấy tất cả rồi lọc (với dữ liệu nhỏ thì ok)
+        res = supabase.table("messages").select("*").execute()
+        data = [m for m in res.data if (m['sender'] == st.session_state.username and m['receiver'] == receiver) or (m['sender'] == receiver and m['receiver'] == st.session_state.username)]
+        return data
+    return res.data
+
+# AI FALLBACK (Nếu Gemini lỗi, tự động dùng Llama)
+def get_ai_response_fallback(prompt, image=None):
     try:
-        response = requests.post("https://app.apipay.vn/v1/client/payment-requests", json=payload, headers=headers)
-        if response.status_code == 200:
-            return response.json()  # Trả về link thanh toán (payUrl)
-        else:
-            return {"error": f"Lỗi ApiPay: {response.text}"}
+        # Thử Gemini trước
+        model = genai.GenerativeModel('gemini-3.5-flash-lite')
+        content = [prompt]
+        if image: content.append(image)
+        return model.generate_content(content).text
     except Exception as e:
-        return {"error": str(e)}
+        print("Gemini lỗi, chuyển sang Llama:", e)
+        try:
+            # Fallback sang Groq
+            import openai
+            client = openai.OpenAI(api_key=st.secrets["GROQ_API_KEY"], base_url="https://api.groq.com/openai/v1")
+            res = client.chat.completions.create(model="openai/gpt-oss-120b", messages=[{"role": "user", "content": prompt}])
+            return res.choices[0].message.content
+        except:
+            return "Hệ thống AI đang quá tải, vui lòng thử lại sau."
