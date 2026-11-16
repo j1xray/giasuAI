@@ -79,6 +79,7 @@ def render_sidebar(user_info, username, is_admin):
         if st.button("🎥 Phòng học nhóm", use_container_width=True): st.session_state.page = "Phòng học nhóm"; st.rerun()
         if st.button("📚 Diễn đàn", use_container_width=True): st.session_state.page = "Diễn đàn"; st.rerun()
         if st.button("👤 Hồ sơ", use_container_width=True): st.session_state.page = "Hồ sơ"; st.rerun()
+        if st.button("👫 Bạn bè & Chat", use_container_width=True): st.session_state.page = "Bạn bè"; st.rerun()
         
         # NHÓM 2: NÚT ADMIN (Chỉ hiện với Admin)
         if is_admin:
