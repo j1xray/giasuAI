@@ -82,3 +82,5 @@ elif page == "Admin":
         views.render_admin(supabase)
     else:
         st.error("Bạn không có quyền truy cập trang này!")
+elif page == "Bạn bè":
+    views.render_friends(supabase, username)
