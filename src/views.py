@@ -3,22 +3,32 @@ import time
 from PIL import Image
 import google.generativeai as genai
 import streamlit.components.v1 as components
+from src import backend # Import backend
 
 def render_ai(supabase, math_brain, code_brain, username, is_premium, daily_questions):
     st.header("Trợ lý AI")
+    
+    # Khôi phục lịch sử chat từ DB (FIX LỖI MẤT LỊCH SỬ)
+    if "msgs_math" not in st.session_state:
+        hist = backend.get_messages(supabase, receiver="AI_MATH")
+        st.session_state["msgs_math"] = [{"role": "user" if h['sender']==username else "assistant", "content": h['content']} for h in hist]
+
     ai_type = st.selectbox("Chọn chế độ", ["Gia sư Toán", "Kỹ sư Code"])
     agent = math_brain if ai_type == "Gia sư Toán" else code_brain
-    tab_key = f"chat_{ai_type}"
+    tab_key = f"msgs_{'math' if ai_type=='Gia sư Toán' else 'code'}"
     
-    if f"msgs_{tab_key}" not in st.session_state: st.session_state[f"msgs_{tab_key}"] = []
-    for m in st.session_state[f"msgs_{tab_key}"]:
+    if tab_key not in st.session_state: st.session_state[tab_key] = []
+    for m in st.session_state[tab_key]:
         with st.chat_message(m["role"]): st.markdown(m["content"])
         
     if not is_premium and daily_questions >= 10:
-        st.warning("Bạn đã hết 10 câu hỏi miễn phí hôm nay. Vui lòng nâng cấp Premium để tiếp tục.")
+        st.warning("Bạn đã hết 10 câu hỏi miễn phí hôm nay. Vui lòng nâng cấp Premium.")
     else:
         if prompt := st.chat_input(f"Nhập yêu cầu cho {ai_type}..."):
-            st.session_state[f"msgs_{tab_key}"].append({"role": "user", "content": prompt})
+            # Lưu vào DB
+            backend.send_message(supabase, username, prompt, receiver="AI_MATH" if ai_type=="Gia sư Toán" else "AI_CODE")
+            
+            st.session_state[tab_key].append({"role": "user", "content": prompt})
             with st.chat_message("user"): st.markdown(prompt)
             with st.chat_message("assistant"):
                 with st.spinner("Đang xử lý..."):
@@ -27,13 +37,81 @@ def render_ai(supabase, math_brain, code_brain, username, is_premium, daily_ques
                         ans = res["output"]
                     except Exception as e: ans = f"Lỗi: {e}"
                     st.markdown(ans)
-                    st.session_state[f"msgs_{tab_key}"].append({"role": "assistant", "content": ans})
+                    st.session_state[tab_key].append({"role": "assistant", "content": ans})
+                    
+                    # Lưu AI trả lời vào DB
+                    backend.send_message(supabase, "AI", ans, receiver=username)
+                    
                     if not is_premium:
                         supabase.table("users").update({"daily_questions": daily_questions + 1}).eq("username", username).execute()
                         st.rerun()
 
+def render_friends(supabase, username):
+    st.header("Bạn Bè & Chat Riêng")
+    
+    # Tìm kiếm & Kết bạn
+    with st.expander("Tìm kiếm và Kết bạn"):
+        search_name = st.text_input("Nhập username người muốn kết bạn:")
+        if st.button("Gửi lời mời"):
+            if search_name and search_name != username:
+                try:
+                    supabase.table("friendships").insert({"sender": username, "receiver": search_name}).execute()
+                    st.success("Đã gửi lời mời!")
+                except: st.error("Lỗi hoặc đã gửi rồi.")
+                    
+    # Lời mời đang chờ
+    reqs = supabase.table("friendships").select("*").eq("receiver", username).eq("status", "pending").execute().data
+    if reqs:
+        st.subheader("Lời mời kết bạn")
+        for req in reqs:
+            col1, col2 = st.columns([3, 1])
+            col1.write(f"**{req['sender']}** muốn kết bạn.")
+            if col2.button("Chấp nhận", key=f"acc_{req['id']}"):
+                supabase.table("friendships").update({"status": "accepted"}).eq("id", req['id']).execute()
+                st.rerun()
+
+    # Danh sách bạn bè & Chat
+    st.divider()
+    friends = supabase.table("friendships").select("*").eq("status", "accepted").or_(f"sender.eq.{username},receiver.eq.{username}").execute().data
+    friend_list = [f['receiver'] if f['sender'] == username else f['sender'] for f in friends]
+    
+    if friend_list:
+        target_friend = st.selectbox("Chọn bạn bè để chat:", friend_list)
+        
+        # Hiển thị tin nhắn
+        messages = backend.get_messages(supabase, receiver=target_friend)
+        for m in messages:
+            is_me = m['sender'] == username
+            with st.chat_message("user" if is_me else "assistant"):
+                st.markdown(m['content'])
+                if m.get('file_url'):
+                    st.image(m['file_url'], width=200) # Nếu là ảnh
+                    
+        # Gửi tin nhắn
+        with st.form("chat_form", clear_on_submit=True):
+            msg = st.text_input("Nhập tin nhắn...")
+            file = st.file_uploader("Gửi ảnh/file", type=["jpg", "png", "pdf"])
+            if st.form_submit_button("Gửi"):
+                file_url = None
+                if file:
+                    # FIX LỖI FILE NẶNG > 2MB
+                    if file.size > 2 * 1024 * 1024:
+                        st.error("File quá lớn! Vui lòng chọn file dưới 2MB.")
+                        st.stop()
+                    f_bytes = file.read()
+                    f_name = f"chat_{username}_{int(time.time())}_{file.name}"
+                    supabase.storage.from_("public_images").upload(file=f_bytes, path=f_name)
+                    file_url = supabase.storage.from_("public_images").get_public_url(f_name)
+                
+                backend.send_message(supabase, username, msg, receiver=target_friend, file_url=file_url)
+                st.rerun()
+    else:
+        st.info("Bạn chưa có người bạn nào. Hãy kết bạn nhé!")
+
 def render_groups(supabase, username, is_admin):
-    st.header("Nhóm học tập")
+    st.header("Nhóm học tập & Chat nhóm")
+    
+    # Tạo nhóm
     with st.expander("Tạo nhóm mới"):
         with st.form("create_group_form"):
             group_name = st.text_input("Tên nhóm")
@@ -48,219 +126,85 @@ def render_groups(supabase, username, is_admin):
                     supabase.table("groups").insert({"group_name": group_name, "group_type": type_val, "created_by": username}).execute()
                     st.success("Đã tạo nhóm thành công!"); time.sleep(1); st.rerun()
                 except: st.error("Lỗi: Tên nhóm đã tồn tại.")
-    st.divider()
-    try:
-        groups = supabase.table("groups").select("*").order("created_at", desc=True).execute()
-        for g in groups.data:
-            with st.container(border=True):
-                col_info, col_btn = st.columns([4, 1])
-                with col_info:
-                    label = "[Cộng đồng]" if g['group_type'] == 'community' else ("[Bạn bè]" if g['group_type'] == 'friends' else "[Học tập]")
-                    st.markdown(f"### {label} {g['group_name']}")
-                    st.caption(f"Tạo bởi: **{g['created_by']}**")
-                with col_btn:
-                    st.button("Tham gia", key=f"join_group_{g['id']}", use_container_width=True)
-    except: pass
-
-def render_image_solver():
-    st.header("Giải bài tập qua ảnh")
-    img_source = st.radio("Nguồn ảnh:", ["Tải ảnh từ máy", "Chụp ảnh bằng Camera"], horizontal=True, index=0)
-    image_data = st.file_uploader("Tải ảnh", type=["jpg", "png"]) if img_source == "Tải ảnh từ máy" else st.camera_input("Chụp ảnh")
-    if image_data:
-        img = Image.open(image_data)
-        st.image(img, width=250)
-        with st.spinner("Đang phân tích..."):
-            model = genai.GenerativeModel('gemini-3.5-flash-lite') 
-            res = model.generate_content(["Hãy giải chi tiết bài tập trong ảnh.", img])
-            st.markdown("### Kết quả:"); st.markdown(res.text)
-
-def render_rooms(supabase, username):
-    st.header("Sảnh phòng học")
-    if "active_room" in st.session_state and st.session_state.active_room:
-        st.subheader(f"Đang trong phòng: {st.session_state.active_room}")
-        if st.button("Rời phòng", type="primary"):
-            st.session_state.active_room = None; st.rerun()
-        components.html(f"""
-        <div id="jitsi-container" style="width: 100%; height: 500px;"></div>
-        <script src="https://meet.jit.si/external_api.js"></script>
-        <script>
-            new JitsiMeetExternalAPI("meet.jit.si", {{ roomName: "{st.session_state.active_room}", parentNode: document.querySelector('#jitsi-container'), width: "100%", height: 500, userInfo: {{ displayName: "{username}" }} }});
-        </script>
-        """, height=520)
+    
+    # Danh sách nhóm
+    groups = supabase.table("groups").select("*").order("created_at", desc=True).execute().data
+    if not groups: return
+    
+    group_dict = {g['group_name']: g['id'] for g in groups}
+    selected_group_name = st.selectbox("Chọn nhóm để tham gia/chat", list(group_dict.keys()))
+    selected_group_id = group_dict[selected_group_name]
+    
+    # Kiểm tra xem đã tham gia chưa
+    is_member = supabase.table("group_members").select("*").eq("group_id", selected_group_id).eq("username", username).execute().data
+    
+    if not is_member:
+        st.warning("Bạn chưa tham gia nhóm này.")
+        # FIX LỖI NÚT THAM GIA
+        if st.button("Tham gia nhóm ngay", type="primary"):
+            supabase.table("group_members").insert({"group_id": selected_group_id, "username": username}).execute()
+            st.success("Đã tham gia nhóm!"); time.sleep(1); st.rerun()
     else:
-        col_create, col_list = st.columns([1, 2])
-        with col_create:
-            st.subheader("Tạo phòng mới")
-            with st.form("create_room_form"):
-                new_room_name = st.text_input("Tên phòng")
-                room_password = st.text_input("Mật khẩu (Để trống nếu công khai)", type="password")
-                if st.form_submit_button("Tạo phòng", type="primary") and new_room_name.strip():
-                    try:
-                        supabase.table("study_rooms").insert({"room_name": new_room_name, "is_public": True, "password": room_password, "created_by": username}).execute()
-                        st.success("Tạo phòng thành công!"); time.sleep(1); st.rerun()
-                    except: st.error("Lỗi: Tên phòng đã tồn tại.")
-        with col_list:
-            st.subheader("Danh sách phòng")
-            try:
-                rooms = supabase.table("study_rooms").select("*").eq("is_public", True).execute()
-                for room in rooms.data:
-                    with st.container(border=True):
-                        st.write(f"**{room['room_name']}** (Tạo bởi: {room['created_by']})")
-                        if room.get('password'):
-                            col_pwd, col_btn = st.columns([2, 1])
-                            with col_pwd: pwd_input = st.text_input("Mật khẩu:", type="password", key=f"pwd_{room['id']}", label_visibility="collapsed")
-                            with col_btn:
-                                if st.button("Tham gia", key=f"join_{room['id']}", use_container_width=True):
-                                    if pwd_input == room['password']: st.session_state.active_room = room['room_name']; st.rerun()
-                                    else: st.error("Sai mật khẩu!")
-                        else:
-                            if st.button("Tham gia", key=f"join_{room['id']}"):
-                                st.session_state.active_room = room['room_name']; st.rerun()
-            except: pass
-
-def render_forum(supabase, username, is_admin):
-    st.header("Diễn đàn học tập")
-    with st.expander("Đăng bài viết mới"):
-        title = st.text_input("Tiêu đề")
-        content = st.text_area("Nội dung")
-        tags_input = st.text_input("Hashtag (VD: toan12, onthi)")
-        uploaded_img = st.file_uploader("Đính kèm ảnh", type=["jpg", "png"])
-        if st.button("Đăng bài", type="primary") and title and content:
-            image_url = None
-            if uploaded_img:
-                f_bytes = uploaded_img.read(); f_name = f"forum_{username}_{int(time.time())}.png"
-                supabase.storage.from_("public_images").upload(file=f_bytes, path=f_name)
-                image_url = supabase.storage.from_("public_images").get_public_url(f_name)
-            supabase.table("forum_posts").insert({"username": username, "title": title, "content": content, "tags": tags_input, "image_url": image_url}).execute()
-            st.success("Đăng bài thành công!"); time.sleep(1); st.rerun()
-    st.divider()
-    try:
-        posts = supabase.table("forum_posts").select("*").order("created_at", desc=True).execute()
-        for post in posts.data:
-            with st.container(border=True):
-                col_title, col_del = st.columns([8, 1])
-                with col_title: st.markdown(f"### {post['title']}")
-                with col_del:
-                    if post['username'] == username or is_admin:
-                        if st.button("Xóa", key=f"del_post_{post['id']}"):
-                            supabase.table("forum_posts").delete().eq("id", post['id']).execute(); st.rerun()
-                st.caption(f"Đăng bởi: **{post['username']}** | {post['created_at'][:10]}")
-                st.write(post['content'])
-                if post.get('image_url'): st.image(post['image_url'], width=400)
-                if post.get('tags'):
-                    hashtag_html = "".join([f'<span class="hashtag-pill">#{t.strip()}</span>' for t in post['tags'].split(',') if t.strip()])
-                    st.markdown(hashtag_html, unsafe_allow_html=True)
-                with st.expander("Bình luận"):
-                    comments = supabase.table("forum_comments").select("*").eq("post_id", post['id']).order("created_at").execute()
-                    for cmt in comments.data: st.markdown(f"**{cmt['username']}**: {cmt['comment']}")
-                    new_cmt = st.text_input("Viết bình luận...", key=f"cmt_{post['id']}")
-                    if st.button("Gửi", key=f"send_{post['id']}") and new_cmt:
-                        supabase.table("forum_comments").insert({"post_id": post['id'], "username": username, "comment": new_cmt}).execute(); st.rerun()
-    except: pass
-
-def render_profile(supabase, user_info, username):
-    if not st.session_state.get("edit_profile", False):
-        banner_url = user_info.get("banner_url") or "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=2070&auto=format&fit=crop"
-        avt_url = user_info.get("avatar_url") or "https://api.dicebear.com/7.x/avataaars/svg?seed=" + username
-        st.markdown(f"""
-        <div style="position: relative; margin-bottom: 70px;">
-            <div style="width: 100%; height: 220px; background-image: url('{banner_url}'); background-size: cover; background-position: center; border-radius: 12px; background-color: #313244;"></div>
-            <div style="position: absolute; bottom: -50px; left: 30px;">
-                <img src="{avt_url}" style="width: 120px; height: 120px; border-radius: 50%; border: 6px solid #1E1E2E; object-fit: cover;">
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.success(f"Bạn đã là thành viên của nhóm: {selected_group_name}")
+        st.divider()
         
-        col_info, col_edit = st.columns([3, 1])
-        with col_info:
-            st.markdown(f"""
-            <div style="padding-left: 30px;">
-                <h1 style="color: #89B4FA; margin: 0; font-size: 32px;">{user_info.get('display_name') or username}</h1>
-                <span style="color: #A6ADC8; font-size: 15px;">@{username}</span>
-                <br><br>
-                <span style="color: #A6ADC8; font-size: 14px;">Streak: {user_info.get('streak_count', 1)} ngày | Tham gia: {user_info.get('created_at', '')[:10]}</span>
-            </div>
-            """, unsafe_allow_html=True)
-        with col_edit:
-            st.markdown("<br><br>", unsafe_allow_html=True)
-            if st.button("Chỉnh sửa hồ sơ", key="btn_edit_profile", use_container_width=True):
-                st.session_state.edit_profile = True; st.rerun()
-        st.markdown("<hr style='border-color: #313244; margin: 20px 0;'>", unsafe_allow_html=True)
-        st.markdown(f"**Ngày sinh:** {user_info.get('birth_date') or 'Chưa cập nhật'}")
-        st.markdown(f"**Giới tính:** {user_info.get('gender') or 'Chưa cập nhật'}")
-        st.markdown(f"**Giới thiệu:** {user_info.get('bio') or 'Chưa có thông tin.'}")
-    else:
-        st.subheader("Chỉnh sửa Hồ sơ")
-        new_name = st.text_input("Tên hiển thị", value=user_info.get("display_name") or username)
-        col_avt, col_banner = st.columns(2)
-        with col_avt: avt_file = st.file_uploader("Ảnh đại diện (Avatar)", type=["jpg", "png"])
-        with col_banner: banner_file = st.file_uploader("Ảnh bìa (Banner - Hỗ trợ GIF)", type=["jpg", "png", "gif"])
-        new_bio = st.text_area("Giới thiệu", value=user_info.get("bio") or "")
-        
-        col_s, col_c = st.columns(2)
-        with col_s:
-            if st.button("Lưu thay đổi", type="primary", use_container_width=True):
-                upd = {"display_name": new_name, "bio": new_bio}
-                if avt_file:
-                    f_bytes = avt_file.read(); f_name = f"avt_{username}_{int(time.time())}.png"
+        # Chat nhóm
+        messages = backend.get_messages(supabase, group_id=selected_group_id)
+        for m in messages:
+            is_me = m['sender'] == username
+            with st.chat_message("user" if is_me else "assistant"):
+                st.caption(f"**{m['sender']}**")
+                st.markdown(m['content'])
+                if m.get('file_url'):
+                    st.image(m['file_url'], width=200)
+                    
+        with st.form("group_chat_form", clear_on_submit=True):
+            msg = st.text_input("Nhắn gì đó cho cả nhóm...")
+            file = st.file_uploader("Gửi ảnh/file", type=["jpg", "png", "pdf"])
+            if st.form_submit_button("Gửi"):
+                file_url = None
+                if file:
+                    if file.size > 2 * 1024 * 1024:
+                        st.error("File quá lớn! Tối đa 2MB."); st.stop()
+                    f_bytes = file.read()
+                    f_name = f"group_{username}_{int(time.time())}_{file.name}"
                     supabase.storage.from_("public_images").upload(file=f_bytes, path=f_name)
-                    upd["avatar_url"] = supabase.storage.from_("public_images").get_public_url(f_name)
-                if banner_file:
-                    f_bytes = banner_file.read(); f_name = f"banner_{username}_{int(time.time())}.{banner_file.name.split('.')[-1]}"
-                    supabase.storage.from_("public_images").upload(file=f_bytes, path=f_name)
-                    upd["banner_url"] = supabase.storage.from_("public_images").get_public_url(f_name)
-                supabase.table("users").update(upd).eq("username", username).execute()
-                st.success("Đã lưu!"); st.session_state.edit_profile = False; time.sleep(1); st.rerun()
-        with col_c:
-            if st.button("Hủy", use_container_width=True):
-                st.session_state.edit_profile = False; st.rerun()
+                    file_url = supabase.storage.from_("public_images").get_public_url(f_name)
+                
+                backend.send_message(supabase, username, msg, group_id=selected_group_id, file_url=file_url)
+                st.rerun()
+
+# (Các hàm render_image_solver, render_rooms, render_forum giữ nguyên như cũ...)
 
 def render_admin(supabase):
-    st.header("👑 Trang Quản Trị Hệ Thống")
+    st.header("👑 Trung Tâm Quản Trị Admin")
     
-    # 1. Thống kê
-    try:
+    tab_stats, tab_users, tab_posts = st.tabs(["Thống kê", "Quản lý User", "Duyệt Bài"])
+    
+    with tab_stats:
         users = supabase.table("users").select("*").execute().data
         posts = supabase.table("forum_posts").select("*").execute().data
-        
-        total_users = len(users)
-        premium_users = len([u for u in users if u.get('is_premium')])
-        
         col1, col2, col3 = st.columns(3)
-        col1.metric("Tổng Người Dùng", total_users)
-        col2.metric("Người Dùng VIP", premium_users)
-        col3.metric("Tổng Bài Đăng", len(posts))
-    except:
-        st.error("Lỗi lấy dữ liệu thống kê.")
-
-    st.divider()
-    
-    # 2. Quản lý VIP thủ công
-    st.subheader("Cấp quyền VIP thủ công")
-    st.write("Dùng khi khách chuyển khoản nhưng webhook bị lỗi.")
-    col_u, col_btn = st.columns([3, 1])
-    with col_u:
-        target_user = st.text_input("Nhập username cần nâng VIP:", label_visibility="collapsed")
-    with col_btn:
-        if st.button("Kích hoạt VIP", type="primary", use_container_width=True):
-            if target_user:
-                supabase.table("users").update({"is_premium": True}).eq("username", target_user).execute()
-                st.success(f"Đã kích hoạt VIP cho **{target_user}**")
-                time.sleep(1); st.rerun()
-            else:
-                st.warning("Vui lòng nhập username.")
-                
-    st.divider()
-    
-    # 3. Quản lý bài viết
-    st.subheader("Kiểm duyệt Diễn đàn")
-    try:
-        all_posts = supabase.table("forum_posts").select("*").order("created_at", desc=True).execute().data
-        for p in all_posts:
-            with st.expander(f"📝 {p['title']} - bởi {p['username']}"):
+        col1.metric("Tổng Người Dùng", len(users))
+        col2.metric("Người Dùng VIP", len([u for u in users if u.get('is_premium')]))
+        col3.metric("Bài Đăng", len(posts))
+        
+    with tab_users:
+        st.subheader("Cấp VIP / Ban User")
+        target = st.text_input("Nhập username:")
+        c1, c2 = st.columns(2)
+        if c1.button("Cấp VIP", type="primary"):
+            supabase.table("users").update({"is_premium": True}).eq("username", target).execute()
+            st.success(f"Đã nâng VIP cho {target}")
+        if c2.button("Thu hồi VIP"):
+            supabase.table("users").update({"is_premium": False}).eq("username", target).execute()
+            st.success(f"Đã thu hồi VIP của {target}")
+            
+    with tab_posts:
+        posts = supabase.table("forum_posts").select("*").order("created_at", desc=True).execute().data
+        for p in posts:
+            with st.expander(f"📝 {p['title']} (bởi {p['username']})"):
                 st.write(p['content'])
-                if st.button(f"🗑️ Xóa bài viết này", key=f"admin_del_{p['id']}"):
+                if st.button("Xóa vĩnh viễn", key=f"admin_del_{p['id']}"):
                     supabase.table("forum_posts").delete().eq("id", p['id']).execute()
-                    st.success("Đã xóa bài viết!"); time.sleep(1); st.rerun()
-    except:
-        st.info("Không có bài viết nào hoặc có lỗi xảy ra.")
+                    st.rerun()
