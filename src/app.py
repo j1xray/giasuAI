@@ -78,7 +78,6 @@ elif page == "Diễn đàn":
 elif page == "Hồ sơ":
     views.render_profile(supabase, user_info, username)
 elif page == "Admin":
-    # CỰC KỲ QUAN TRỌNG: Chỉ Admin mới được vào trang này
     if is_admin:
         views.render_admin(supabase)
     else:
